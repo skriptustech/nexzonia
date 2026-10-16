@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexzonia · Debug Dungeon (PROTOTYPE)</title>
+<style>
+  :root { --bg:#faf9f7; --card:#fff; --ink:#1d1d22; --mute:#6b6b76; --line:#e4e2dd; --accent:#4f46e5; --accent-soft:#eceafd; --warn:#b45309; --bad:#b91c1c; --good:#15803d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16161a; --card:#202026; --ink:#ececf1; --mute:#9a9aa8; --line:#33333c; --accent:#8b83ff; --accent-soft:#2a2850; --warn:#f0b35a; --bad:#f08080; --good:#6fd08c; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); margin:32px 0 10px; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); font-weight:600; vertical-align:middle; }
+  .question { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:14px 16px; margin:16px 0; }
+  .question p { margin:0 0 8px; } .question p:last-child { margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button { font:inherit; font-size:13px; padding:5px 10px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.done { background:var(--accent-soft); color:var(--accent); border-color:transparent; opacity:1; }
+  button.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  button.next { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  select { font:inherit; padding:5px 8px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .symptom { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .symptom b { color:var(--bad); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:12px; }
+  .stat .lbl { font-size:12px; color:var(--mute); } .stat .val { font-size:22px; font-weight:650; }
+  .bar { height:8px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .bar.hot > i { background:var(--warn); } .bar.crit > i { background:var(--bad); }
+  .changed { margin-top:12px; padding:10px 14px; border-radius:8px; background:var(--accent-soft); color:var(--ink); }
+  .changed.rej { background:transparent; border:1px dashed var(--bad); color:var(--bad); }
+  .delta { font-weight:600; margin-left:6px; }
+  .comp h3 { margin:0; font-size:16px; } .comp .calls { color:var(--mute); font-size:12px; margin:2px 0 10px; }
+  .comp .tools { display:flex; flex-wrap:wrap; gap:6px; } .comp .hyp { margin-top:10px; }
+  .cost { opacity:.6; font-size:11px; margin-left:3px; }
+  ul.plain { list-style:none; margin:0; padding:0; } ul.plain li { padding:8px 0; border-bottom:1px solid var(--line); } ul.plain li:last-child { border:0; }
+  .src { font-size:12px; color:var(--mute); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media(max-width:760px){ .two{ grid-template-columns:1fr; } }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .tabs button.on { font-weight:600; }
+  .steps { display:flex; flex-direction:column; gap:8px; align-items:flex-start; margin-top:10px; }
+  .steps button { text-align:left; }
+  .over { border-left:4px solid var(--accent); margin-top:12px; }
+  .over.lost { border-left-color:var(--bad); } .over h3 { margin:0 0 4px; }
+  .muted { color:var(--mute); }
+  .fixgroup { margin-bottom:10px; } .fixgroup b { font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Debug Dungeon <span class="tag">PROTOTYPE · throwaway</span></h1>
+  <div class="muted">Nexzonia · a service is on fire and you are the on-call engineer.</div>
+
+  <div class="question">
+    <p><b>The question this prototype answers:</b> does the core debugging loop <i>feel</i> like real incident work, and is it fun?</p>
+    <p>The loop: you have limited <b>Focus</b> to investigate, while customers are being lost every action (<b>Impact</b>). You can look (logs, metrics, what changed, traces, isolation), <b>mitigate</b> to slow the bleeding, then form a <b>hypothesis</b> and apply a <b>fix</b>. Wrong fixes hurt. Pick the right one and the incident ends.</p>
+    <p class="muted">Things to notice: is the decoy tempting? Does "mitigate first" feel worth its Focus? Is the penalty for guessing fair? Would you want to play another one? Not sure where to start? Jump to the guided walkthroughs at the bottom, or just poke at the system map.</p>
+  </div>
+
+  <div class="row">
+    <label for="scn"><b>Incident:</b></label>
+    <select id="scn"></select>
+    <button class="primary" id="startBtn">Start / restart this incident</button>
+  </div>
+
+  <h2>Current state</h2>
+  <div id="state"></div>
+
+  <h2>The system (poke at it)</h2>
+  <div id="map" class="grid"></div>
+
+  <div class="two" style="margin-top:12px">
+    <div>
+      <h2>Mitigations <span class="muted" style="text-transform:none;letter-spacing:0">· stop the bleeding, don't fix the cause</span></h2>
+      <div class="card" id="mits"></div>
+    </div>
+    <div>
+      <h2>Fix options <span class="muted" style="text-transform:none;letter-spacing:0">· unlock when you've inspected a component</span></h2>
+      <div class="card" id="fixes"></div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:12px">
+    <div><h2>Notebook (what you've learned)</h2><div class="card" id="notebook"></div></div>
+    <div><h2>Incident log</h2><div class="card" id="log"></div></div>
+  </div>
+
+  <h2>Guided walkthroughs</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="card" id="wt"><span class="muted">Pick a walkthrough. It resets the incident to a known start and gives you the buttons to press, in order.</span></div>
+</main>
+
+<!-- ============================ DATA + PURE ENGINE ============================ -->
+<script id="engine">
+// ---- Tools: what the player can do to a component ----
+const TOOLS = {
+  logs:    { label:'Read logs',     cost:1 },
+  metrics: { label:'Check metrics', cost:1 },
+  changes: { label:'What changed?', cost:2 },
+  trace:   { label:'Trace request', cost:3 },
+  isolate: { label:'Isolate it',    cost:3 },
+};
+const ROLE_LABEL = { cause:'the real cause', symptom:'a victim of the cause', decoy:'a loud decoy', innocent:'an innocent bystander' };
+
+// ---- Incidents are pure data. Roles are hidden from the player until the debrief. ----
+const SCENARIOS = {
+  slow_checkout: {
+    id:'slow_checkout', title:'The Slow Checkout',
+    symptom:'Customers report checkout takes 30+ seconds, then fails. Support tickets are piling up.',
+    focus:14, startImpact:25, baseImpact:7,
+    components:{
+      gateway:{ name:'Gateway', role:'symptom', calls:['checkout'], clues:{
+        logs:'504 Gateway Timeout ×2,311 in the last 10 min. Upstream: Checkout.',
+        metrics:'Error rate 41%. p99 latency pinned at 30s (the timeout).',
+        changes:'No deploys in 14 days.',
+        trace:'The whole 30s is spent waiting on Checkout. Nothing slow inside Gateway itself.',
+        isolate:'Gateway with Checkout stubbed out answers in 12ms. Gateway is fine.' }},
+      checkout:{ name:'Checkout', role:'symptom', calls:['cart','inventory','payments'], clues:{
+        logs:'Timeout calling Cart (5s) — retry 1/3 … retry 2/3 … retry 3/3. Same pattern on every request.',
+        metrics:'Worker threads 100% busy, all waiting on Cart. CPU only 8%.',
+        changes:'Last deploy 9 days ago. Unrelated.',
+        trace:'Per request: Inventory 40ms, Payments 220ms, Cart 14,800ms (×3 with retries).',
+        isolate:'Checkout with Cart stubbed out: 310ms. Checkout is fine by itself.' }},
+      cart:{ name:'Cart', role:'cause', calls:['cache','db'], clues:{
+        logs:'Cache MISS key=cart:u8812:1718291004. SLOW QUERY: SELECT * FROM cart_items (4.2s). Every request looks like this.',
+        metrics:'p99 14s. Cache hit rate 0% (was 94% yesterday).',
+        changes:'Deploy #482, 41 minutes ago: "Refactor cart key builder". Problems started 40 minutes ago.',
+        trace:'Cart time: cache lookup 3ms (miss), DB query 4,100ms.',
+        isolate:'With the real cache and DB: slow. With the cache pre-seeded using the OLD key format: fast. The new key format never hits.' }},
+      cache:{ name:'Cart Cache', role:'innocent', calls:[], clues:{
+        logs:'Memory 12%. Evictions 0. Millions of GET misses, nothing erroring.',
+        metrics:'Healthy. Hit rate 0%, but that is a symptom of what is being asked for, not of the cache.',
+        changes:'No changes in 30 days.',
+        trace:'GET latency 1ms. Fast and empty.',
+        isolate:'Set/get round-trip works. The cache passes its own health check.' }},
+      db:{ name:'Orders DB', role:'decoy', calls:[], clues:{
+        logs:'CPU 98%. Connection pool exhausted (100/100). 9,000 slow queries logged. This is the loudest fire in the building.',
+        metrics:'CPU 98%, connections maxed, disk fine.',
+        changes:'No schema changes. Last migration 3 weeks ago.',
+        trace:'The queries are simple, identical reads — but at about 40× normal volume.',
+        isolate:'At its normal load the DB is fine. It is overwhelmed, not broken.' }},
+      inventory:{ name:'Inventory', role:'innocent', calls:[], clues:{
+        logs:'WARN stock sync lag 3s. (It has logged this for weeks.)',
+        metrics:'Healthy. p99 40ms.',
+        changes:'Deploy 2 days ago: a minor logging tweak.',
+        trace:'40ms, steady.',
+        isolate:'Behaves normally in isolation.' }},
+      payments:{ name:'Payments', role:'decoy', calls:[], clues:{
+        logs:'ERROR 14 requests abandoned mid-charge: caller (Checkout) hung up after timeout.',
+        metrics:'Error rate 3% (up from 0.1%).',
+        changes:'Deploy yesterday: card-network certificate update.',
+        trace:'220ms per charge, normal. The errors are callers giving up.',
+        isolate:'Charges succeed normally when called directly.' }},
+    },
+    mitigations:[
+      { id:'m_noretry', label:'Turn off Checkout retries (feature flag)', cost:1, rateMult:0.6,
+        note:'The retry storm stops multiplying load. Cart is still slow, but customers are now failing more slowly.' },
+      { id:'m_scaledb', label:'Scale Orders DB up 2×', cost:2, rateMult:0.6,
+        note:'Buys breathing room. It does not explain why the DB is drowning.' },
+      { id:'m_restart', label:'Restart Cart', cost:1, rateMult:1,
+        note:'Cart comes back… and is slow again within 90 seconds. That bought nothing.' },
+    ],
+    fixes:[
+      { id:'f_gw_timeout', target:'gateway', label:'Raise Gateway timeout to 60s', cost:2, kind:'wrong', penalty:10,
+        outcome:'Customers now wait a full minute before seeing the same error. You hid the symptom from your own dashboard, not from customers.' },
+      { id:'f_co_retries', target:'checkout', label:'Add more retries to Checkout', cost:2, kind:'wrong', penalty:20,
+        outcome:'More retries means more load on a Cart that is already drowning. The retry storm gets worse.' },
+      { id:'f_co_scale', target:'checkout', label:'Scale Checkout to 20 instances', cost:2, kind:'wrong', penalty:10,
+        outcome:'More Checkout instances means more simultaneous calls into Cart. You are pushing harder on the bruise.' },
+      { id:'f_rollback', target:'cart', label:'Roll back Cart deploy #482', cost:2, kind:'root',
+        outcome:'Cart cache keys return to the stable format. Hit rate climbs from 0% to 94% in two minutes, DB CPU falls, Checkout recovers.' },
+      { id:'f_cart_index', target:'cart', label:'Add an index to cart_items', cost:2, kind:'wrong', penalty:10,
+        outcome:'The index build locks the table at peak traffic. The query was already indexed. This was not the problem.' },
+      { id:'f_cache_flush', target:'cache', label:'Flush and rebuild the cache', cost:2, kind:'wrong', penalty:15,
+        outcome:'A cold cache plus a bad key format sends even more traffic to the DB for a few minutes.' },
+      { id:'f_db_kill', target:'db', label:'Kill all slow queries', cost:2, kind:'wrong', penalty:10,
+        outcome:'The killed queries come straight back, because 40× normal volume is still arriving.' },
+      { id:'f_inv_revert', target:'inventory', label:"Revert Inventory's logging tweak", cost:2, kind:'wrong', penalty:10,
+        outcome:'Inventory was never slow. You deployed to production at the worst moment, for nothing.' },
+      { id:'f_pay_timeout', target:'payments', label:'Raise the Payments timeout', cost:2, kind:'wrong', penalty:10,
+        outcome:'Payments was never the bottleneck; it was receiving abandoned requests. Charges can now hang longer.' },
+    ],
+    rootSummary:'Cart deploy #482 changed the cache key format, so the cache never hit. Every cart read fell through to the DB (40× load). Cart went slow, Checkout retried (3× more load), and Gateway timed out.',
+    lessons:[
+      'Symptoms live downstream. The loudest fire (the DB at 98%) was a victim, not the culprit.',
+      '"What changed?" is often the fastest question. Deploy #482 landed one minute before the problems did.',
+      'Mitigate before you root-cause. Stopping the retry storm bought time to think.',
+      'Retries are load multipliers. Retrying a struggling dependency makes it struggle harder.',
+      'A 0% hit rate can be a cache working perfectly with the wrong keys.',
+    ],
+  },
+
+  double_emails: {
+    id:'double_emails', title:'The Double Emails',
+    symptom:'Customers are getting the same order-confirmation email 2–3 times. It started 3 days ago.',
+    focus:12, startImpact:15, baseImpact:6,
+    components:{
+      orders:{ name:'Orders API', role:'decoy', calls:['queue'], clues:{
+        logs:'OrderPlaced published once per order (ord_9913 → msg_1). One line per order.',
+        metrics:'Healthy. Publish count equals order count.',
+        changes:'Deploy 5 hours ago: tweaked the HTTP client retry policy.',
+        trace:'One publish per order. No double-send here.',
+        isolate:'Replaying 100 orders produced exactly 100 messages.' }},
+      queue:{ name:'Message Queue', role:'symptom', calls:['mailer'], clues:{
+        logs:'msg_1 delivered 3 times: t=0s, t=31s, t=62s. No ack received between deliveries.',
+        metrics:'Redelivery rate 38% (was 0.2%). Visibility timeout: 30s.',
+        changes:'Config unchanged for 90 days.',
+        trace:'Gaps between deliveries are almost exactly 30s: the visibility timeout expiring before an ack.',
+        isolate:'Works as designed: if there is no ack in 30s, it redelivers. That is the promise.' }},
+      mailer:{ name:'Mailer Worker', role:'cause', calls:['templates','smtp'], clues:{
+        logs:'Processing msg_1… rendering invoice PDF… done in 44s… ack. Also: "Processing msg_1" started again while the first was still running.',
+        metrics:'Average job time 44s (was 2s). Duplicate-send rate 38%.',
+        changes:'Deploy 3 days ago: "Attach invoice PDF to confirmation email".',
+        trace:'Job time: template 0.2s, PDF render 41s, SMTP 0.8s.',
+        isolate:'One message, nothing else running: sends exactly once, in 44s. Duplicates only appear through the queue.' }},
+      templates:{ name:'Template Service', role:'innocent', calls:[], clues:{
+        logs:'Cold-start warnings, as usual.',
+        metrics:'Healthy. p99 200ms.',
+        changes:'Deploy 2 days ago: new footer text.',
+        trace:'Renders in 0.2s.',
+        isolate:'Renders correctly and idempotently.' }},
+      smtp:{ name:'Email Provider', role:'decoy', calls:[], clues:{
+        logs:'Provider note: "Duplicate recipient detected, message accepted anyway."',
+        metrics:'100% delivered. Zero provider-side retries.',
+        changes:'Status page: no incidents.',
+        trace:'0.8s per send.',
+        isolate:'Sandbox send: delivered once.' }},
+    },
+    mitigations:[
+      { id:'m_pause', label:'Pause confirmation emails', cost:1, rateMult:0.3,
+        note:'Duplicates stop because emails stop. Customers now get nothing, but at least not three copies.' },
+      { id:'m_scale', label:'Add 3× more Mailer workers', cost:1, rateMult:1.4,
+        note:'More workers means more jobs racing the visibility timeout. The duplicates got worse.' },
+      { id:'m_switch', label:'Switch to the backup email provider', cost:2, rateMult:1,
+        note:'Same duplicates, different provider.' },
+    ],
+    fixes:[
+      { id:'f_ord_dedupe', target:'orders', label:'Deduplicate in the Orders publisher', cost:2, kind:'wrong', penalty:10,
+        outcome:'Orders was only ever publishing once. You added code to fix a problem it did not have.' },
+      { id:'f_q_timeout', target:'queue', label:'Raise the queue visibility timeout to 120s', cost:2, kind:'partial',
+        outcome:'Messages stop being redelivered while jobs finish under 2 minutes. The next time the Mailer gets slow, duplicates return. The missing idempotency is still a time bomb.' },
+      { id:'f_q_exactly', target:'queue', label:'Migrate to an "exactly-once" queue', cost:3, kind:'wrong', penalty:15,
+        outcome:'A multi-week migration in the middle of an incident, and exactly-once delivery still needs idempotent consumers in practice.' },
+      { id:'f_m_idem', target:'mailer', label:'Make the Mailer idempotent (skip message IDs already sent)', cost:2, kind:'root',
+        outcome:'The Mailer records each message ID it has handled. Redeliveries are acknowledged and skipped. Duplicates drop to zero, and will stay at zero even on slow days.' },
+      { id:'f_m_fastpdf', target:'mailer', label:'Speed up PDF rendering', cost:3, kind:'partial',
+        outcome:'Jobs now take 25s, under the 30s timeout. Duplicates stop today. Any slow day brings them back.' },
+      { id:'f_t_footer', target:'templates', label:'Roll back the footer text change', cost:2, kind:'wrong', penalty:10,
+        outcome:'The footer text was never the issue. Customers just have the old footer back.' },
+      { id:'f_s_dedupe', target:'smtp', label:'Turn on provider-side dedupe', cost:2, kind:'wrong', penalty:10,
+        outcome:'The provider only dedupes identical messages within 5 seconds. Yours arrive 30 seconds apart. Nothing changes.' },
+    ],
+    rootSummary:'The Mailer deploy added a 41s PDF render. The queue only waits 30s for an ack, so it redelivers while the first job is still running. Nothing in the Mailer notices it already sent that message.',
+    lessons:[
+      'Check your first suspect, but verify it. Orders published exactly once.',
+      'At-least-once delivery means every consumer must tolerate duplicates (idempotency).',
+      'Raising the timeout fixes the trigger. Idempotency fixes the underlying property. One is a patch, the other is a fix.',
+      'Scaling out is not always a mitigation. It can amplify a race.',
+      '"Working as designed" is not "broken". The queue did exactly what it promised.',
+    ],
+  },
+};
+
+// ---- The pure engine. No DOM. This is the part worth keeping. ----
+const Engine = (() => {
+  const inspectedAny = (s, id) => Object.keys(s.inspected).some(k => k.split(':')[0] === id);
+  const pace = s => Math.round(s.sc.baseImpact * s.rateMult);
+  const reject = (s, text) => ({ ...s, last:{ rejected:true, text } });
+  const addLog = (s, tone, text) => [...s.log, { step:s.step, tone, text }];
+
+  // Settle: check the loss conditions after any action that didn't win.
+  function settle(s) {
+    if (s.status !== 'active') return s;
+    if (s.impact >= 100) return { ...s, impact:100, status:'lost', outcome:{ kind:'lost', why:'impact' } };
+    if (s.focus <= 0)    return { ...s, status:'lost', outcome:{ kind:'lost', why:'focus' } };
+    return s;
+  }
+
+  function start(sc) {
+    return { sc, step:0, focus:sc.focus, impact:sc.startImpact, rateMult:1, status:'active', outcome:null,
+             hypothesis:null, inspected:{}, notebook:[], mitigations:[], fixesTried:[],
+             log:[{ step:0, tone:'info', text:'You are paged: ' + sc.symptom }], last:null };
+  }
+
+  function reduce(s, a) {
+    if (s.status !== 'active') return reject(s, 'The incident is over. Start a new one.');
+    const sc = s.sc;
+
+    if (a.type === 'inspect') {
+      const tool = TOOLS[a.tool], comp = sc.components[a.target], key = a.target + ':' + a.tool;
+      if (!tool || !comp) return reject(s, 'Unknown tool or component.');
+      if (s.inspected[key]) return reject(s, 'You already did that. The answer is in your notebook.');
+      if (s.focus < tool.cost) return reject(s, `Not enough Focus: that costs ${tool.cost}, you have ${s.focus}.`);
+      const dImp = pace(s), step = s.step + 1;
+      return settle({ ...s, step, focus:s.focus - tool.cost, impact:s.impact + dImp,
+        inspected:{ ...s.inspected, [key]:true },
+        notebook:[...s.notebook, { step, target:a.target, tool:a.tool, text:comp.clues[a.tool] }],
+        last:{ text:`${tool.label} on ${comp.name}.`, dFocus:-tool.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'hypothesize') {
+      const comp = sc.components[a.target];
+      if (!comp) return reject(s, 'Unknown component.');
+      return { ...s, hypothesis:a.target,
+        log:addLog(s, 'info', `Hypothesis: the problem is in ${comp.name}.`),
+        last:{ text:`You commit to a hypothesis: ${comp.name}. (Free, but you will be held to it.)`, dFocus:0, dImpact:0 } };
+    }
+
+    if (a.type === 'mitigate') {
+      const m = sc.mitigations.find(x => x.id === a.id);
+      if (!m) return reject(s, 'Unknown mitigation.');
+      if (s.mitigations.includes(m.id)) return reject(s, 'Already applied.');
+      if (s.focus < m.cost) return reject(s, `Not enough Focus: that costs ${m.cost}, you have ${s.focus}.`);
+      const next = { ...s, step:s.step + 1, focus:s.focus - m.cost, rateMult:s.rateMult * m.rateMult, mitigations:[...s.mitigations, m.id] };
+      const dImp = pace(next);
+      return settle({ ...next, impact:s.impact + dImp,
+        log:addLog(next, 'mit', `${m.label}: ${m.note}`),
+        last:{ text:`Mitigation applied: ${m.label}.`, dFocus:-m.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'fix') {
+      const f = sc.fixes.find(x => x.id === a.id);
+      if (!f) return reject(s, 'Unknown fix.');
+      const comp = sc.components[f.target];
+      if (!inspectedAny(s, f.target)) return reject(s, `You have not even looked at ${comp.name}. Do not change what you have not inspected.`);
+      if (s.hypothesis !== f.target) return reject(s, `State your hypothesis first. Say that you believe ${comp.name} is the problem before you touch production.`);
+      if (s.fixesTried.includes(f.id)) return reject(s, 'You already tried that.');
+      if (s.focus < f.cost) return reject(s, `Not enough Focus: that costs ${f.cost}, you have ${s.focus}.`);
+      const step = s.step + 1, focus = s.focus - f.cost;
+      if (f.kind === 'root' || f.kind === 'partial') {
+        return { ...s, step, focus, status:'won', outcome:{ kind:f.kind, fix:f },
+          log:addLog({ ...s, step }, f.kind === 'root' ? 'good' : 'warn', `${f.label}: ${f.outcome}`),
+          last:{ text:`Fix applied: ${f.label}.`, dFocus:-f.cost, dImpact:0 } };
+      }
+      const dImp = pace(s) + f.penalty;
+      return settle({ ...s, step, focus, impact:s.impact + dImp, hypothesis:null,
+        fixesTried:[...s.fixesTried, f.id],
+        log:addLog({ ...s, step }, 'bad', `${f.label}: ${f.outcome} Your hypothesis about ${comp.name} is disproven.`),
+        last:{ text:`Fix failed: ${f.label}. Hypothesis cleared.`, dFocus:-f.cost, dImpact:dImp } });
+    }
+    return reject(s, 'Unknown action.');
+  }
+
+  function debrief(s) {
+    const examined = [...new Set(Object.keys(s.inspected).map(k => k.split(':')[0]))];
+    const o = s.outcome || {};
+    let grade, blurb;
+    if (o.kind === 'root') {
+      grade = (s.impact < 60 && s.fixesTried.length === 0) ? 'Clean resolution' : 'Resolved, with scars';
+      blurb = 'You found and fixed the root cause.';
+    } else if (o.kind === 'partial') {
+      grade = 'Patched, not fixed';
+      blurb = 'The pages stopped, but the underlying bug is still there.';
+    } else if (o.why === 'impact') {
+      grade = 'Customers walked away'; blurb = 'Impact hit 100 before you found the cause.';
+    } else {
+      grade = 'Out of steam. Time to escalate'; blurb = 'You ran out of Focus before resolving the incident.';
+    }
+    return { grade, blurb, examined, wrongFixes:s.fixesTried.length, mitigations:s.mitigations.length };
+  }
+
+  return { start, reduce, debrief, inspectedAny };
+})();
+</script>
+
+<!-- ============================ THROWAWAY PAGE SHELL ============================ -->
+<script id="page">
+const WALKTHROUGHS = [
+  { title:'1 · Follow the evidence', scenario:'slow_checkout',
+    desc:'The happy path on the Slow Checkout. Mitigate first, then follow the trace past the loud database to the real cause. Watch how fast Impact grows before step 1 and how it slows after. Notice that the trace points at Cart, and "What changed?" names the culprit.',
+    steps:[
+      { label:'Mitigate: turn off Checkout retries', a:{ type:'mitigate', id:'m_noretry' } },
+      { label:'Gateway · Check metrics', a:{ type:'inspect', tool:'metrics', target:'gateway' } },
+      { label:'Checkout · Trace request', a:{ type:'inspect', tool:'trace', target:'checkout' } },
+      { label:'Cart · What changed?', a:{ type:'inspect', tool:'changes', target:'cart' } },
+      { label:'Hypothesis: it is in Cart', a:{ type:'hypothesize', target:'cart' } },
+      { label:'Fix: roll back Cart deploy #482', a:{ type:'fix', id:'f_rollback' } },
+    ] },
+  { title:'2 · The loud decoy', scenario:'slow_checkout',
+    desc:'What happens if you chase the loudest alarm. The DB is at 98% and Payments is throwing errors, and both look guilty. Watch Impact climb with each wrong fix, and notice that a failed fix clears your hypothesis. When the steps run out, try recovering in free-play: what is the cheapest way out from here?',
+    steps:[
+      { label:'Orders DB · Check metrics', a:{ type:'inspect', tool:'metrics', target:'db' } },
+      { label:'Orders DB · Read logs', a:{ type:'inspect', tool:'logs', target:'db' } },
+      { label:'Hypothesis: it is in Orders DB', a:{ type:'hypothesize', target:'db' } },
+      { label:'Fix: kill all slow queries', a:{ type:'fix', id:'f_db_kill' } },
+      { label:'Payments · Read logs', a:{ type:'inspect', tool:'logs', target:'payments' } },
+      { label:'Hypothesis: it is in Payments', a:{ type:'hypothesize', target:'payments' } },
+      { label:'Fix: raise the Payments timeout', a:{ type:'fix', id:'f_pay_timeout' } },
+    ] },
+  { title:'3 · Rules of the dungeon', scenario:'slow_checkout',
+    desc:'Illegal moves and running dry. The first few steps are attempts the game should refuse (look for the red dashed message under Current state). Then burn Focus on expensive traces until the game says no, and finally run out entirely.',
+    steps:[
+      { label:'Try: roll back Cart without ever inspecting it', a:{ type:'fix', id:'f_rollback' } },
+      { label:'Cart · Read logs', a:{ type:'inspect', tool:'logs', target:'cart' } },
+      { label:'Try: roll back Cart without a hypothesis', a:{ type:'fix', id:'f_rollback' } },
+      { label:'Try: read Cart logs a second time', a:{ type:'inspect', tool:'logs', target:'cart' } },
+      { label:'Gateway · Trace request (3)', a:{ type:'inspect', tool:'trace', target:'gateway' } },
+      { label:'Checkout · Trace request (3)', a:{ type:'inspect', tool:'trace', target:'checkout' } },
+      { label:'Cart · Trace request (3)', a:{ type:'inspect', tool:'trace', target:'cart' } },
+      { label:'Orders DB · Trace request (3)', a:{ type:'inspect', tool:'trace', target:'db' } },
+      { label:'Try: Cart Cache · Trace request (not enough Focus)', a:{ type:'inspect', tool:'trace', target:'cache' } },
+      { label:'Spend the last Focus: Cart Cache · Read logs', a:{ type:'inspect', tool:'logs', target:'cache' } },
+    ] },
+  { title:'4 · Patch vs. fix', scenario:'double_emails',
+    desc:'A different incident. The queue is redelivering emails, so raising its timeout looks like the answer. It will end the incident, but read the debrief grade carefully. Then restart the incident in free-play and find what the better fix is.',
+    steps:[
+      { label:'Message Queue · Check metrics', a:{ type:'inspect', tool:'metrics', target:'queue' } },
+      { label:'Message Queue · Trace request', a:{ type:'inspect', tool:'trace', target:'queue' } },
+      { label:'Hypothesis: it is in Message Queue', a:{ type:'hypothesize', target:'queue' } },
+      { label:'Fix: raise the visibility timeout to 120s', a:{ type:'fix', id:'f_q_timeout' } },
+    ] },
+  { title:'5 · The real fix', scenario:'double_emails',
+    desc:'Same incident, deeper. First a mitigation that sounds reasonable but backfires: watch the pace of Impact get worse. Then ask the right question of the Mailer and fix the property instead of the trigger.',
+    steps:[
+      { label:'Mitigate: add 3× more Mailer workers', a:{ type:'mitigate', id:'m_scale' } },
+      { label:'Mitigate: pause confirmation emails', a:{ type:'mitigate', id:'m_pause' } },
+      { label:'Mailer Worker · What changed?', a:{ type:'inspect', tool:'changes', target:'mailer' } },
+      { label:'Mailer Worker · Trace request', a:{ type:'inspect', tool:'trace', target:'mailer' } },
+      { label:'Hypothesis: it is in Mailer Worker', a:{ type:'hypothesize', target:'mailer' } },
+      { label:'Fix: make the Mailer idempotent', a:{ type:'fix', id:'f_m_idem' } },
+    ] },
+];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const attr = o => esc(JSON.stringify(o));
+let G = Engine.start(SCENARIOS.slow_checkout);
+let WT = null; // { i, done }
+
+function dispatch(a) { G = Engine.reduce(G, a); render(); }
+function startScenario(id) { G = Engine.start(SCENARIOS[id]); WT = null; render(); }
+function startWalkthrough(i) { WT = { i, done:0 }; G = Engine.start(SCENARIOS[WALKTHROUGHS[i].scenario]); render(); }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.a) dispatch(JSON.parse(b.dataset.a));
+  else if (b.dataset.tab) startWalkthrough(+b.dataset.tab);
+  else if (b.dataset.step) { const n = +b.dataset.step; dispatch(WALKTHROUGHS[WT.i].steps[n].a); WT.done = n + 1; render(); }
+  else if (b.id === 'startBtn') startScenario($('#scn').value);
+  else if (b.dataset.restart) { WT ? startWalkthrough(WT.i) : startScenario(G.sc.id); }
+});
+
+function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n); }
+
+function render() {
+  const sc = G.sc, over = G.status !== 'active';
+  // scenario picker
+  const sel = $('#scn');
+  if (!sel.options.length) Object.values(SCENARIOS).forEach(x => sel.add(new Option(x.title, x.id)));
+  sel.value = sc.id;
+
+  // ---- state ----
+  const rate = Math.round(sc.baseImpact * G.rateMult);
+  const cls = G.impact >= 80 ? 'crit' : G.impact >= 60 ? 'hot' : '';
+  const hyp = G.hypothesis ? sc.components[G.hypothesis].name : 'none yet';
+  let last = '';
+  if (G.last) {
+    last = G.last.rejected
+      ? `<div class="changed rej"><b>Not allowed.</b> ${esc(G.last.text)}</div>`
+      : `<div class="changed"><b>What just changed:</b> ${esc(G.last.text)}
+           <span class="delta">Focus ${signed(G.last.dFocus)}</span><span class="delta">Impact ${signed(G.last.dImpact)}</span></div>`;
+  }
+  $('#state').innerHTML = `
+    <div class="symptom"><b>${esc(sc.title)}.</b> ${esc(sc.symptom)}
+      <div class="stats">
+        <div class="stat"><div class="lbl">Impact (customers lost). Game over at 100</div><div class="val">${G.impact}</div><div class="bar ${cls}"><i style="width:${G.impact}%"></i></div></div>
+        <div class="stat"><div class="lbl">Focus left</div><div class="val">${G.focus} <span class="muted" style="font-size:14px">/ ${sc.focus}</span></div><div class="bar"><i style="width:${G.focus / sc.focus * 100}%"></i></div></div>
+        <div class="stat"><div class="lbl">Impact added per action</div><div class="val">+${rate}</div><div class="lbl">${G.mitigations.length} mitigation(s) active</div></div>
+        <div class="stat"><div class="lbl">Your hypothesis</div><div class="val" style="font-size:17px">${esc(hyp)}</div><div class="lbl">Actions taken: ${G.step}</div></div>
+      </div>
+    </div>${last}${over ? renderOver() : ''}`;
+
+  // ---- map ----
+  $('#map').innerHTML = Object.entries(sc.components).map(([id, c]) => `
+    <div class="card comp">
+      <h3>${esc(c.name)}</h3>
+      <div class="calls">${c.calls.length ? 'calls → ' + c.calls.map(x => esc(sc.components[x].name)).join(', ') : 'leaf service'}</div>
+      <div class="tools">${Object.entries(TOOLS).map(([t, tl]) => {
+        const done = G.inspected[id + ':' + t];
+        return `<button class="${done ? 'done' : ''}" ${over || done ? 'disabled' : ''} data-a="${attr({ type:'inspect', tool:t, target:id })}">${done ? '✓ ' : ''}${tl.label}<span class="cost">${tl.cost}</span></button>`;
+      }).join('')}</div>
+      <div class="hyp"><button class="${G.hypothesis === id ? 'on' : ''}" ${over ? 'disabled' : ''} data-a="${attr({ type:'hypothesize', target:id })}">${G.hypothesis === id ? '★ My hypothesis' : 'I think it is here'}</button></div>
+    </div>`).join('');
+
+  // ---- mitigations ----
+  $('#mits').innerHTML = `<div class="row">${sc.mitigations.map(m => {
+    const used = G.mitigations.includes(m.id);
+    return `<button class="${used ? 'done' : ''}" ${over || used ? 'disabled' : ''} data-a="${attr({ type:'mitigate', id:m.id })}">${used ? '✓ ' : ''}${esc(m.label)}<span class="cost">${m.cost}</span></button>`;
+  }).join('')}</div><p class="src">Mitigations cost Focus and may or may not slow the bleeding. Nothing tells you which in advance.</p>`;
+
+  // ---- fixes ----
+  const unlocked = Object.keys(sc.components).filter(id => Engine.inspectedAny(G, id));
+  const hidden = sc.fixes.filter(f => !unlocked.includes(f.target)).length;
+  $('#fixes').innerHTML = (unlocked.length ? unlocked.map(id => `
+    <div class="fixgroup"><b>${esc(sc.components[id].name)}</b><div class="row" style="margin-top:4px">${sc.fixes.filter(f => f.target === id).map(f => {
+      const tried = G.fixesTried.includes(f.id);
+      return `<button ${over || tried ? 'disabled' : ''} data-a="${attr({ type:'fix', id:f.id })}">${esc(f.label)}<span class="cost">${f.cost}</span></button>`;
+    }).join('')}</div></div>`).join('') : '<span class="muted">Inspect something to see what you could change.</span>')
+    + `<p class="src">${hidden} more fix option(s) unlock as you inspect other components. A fix needs a matching hypothesis first.</p>`;
+
+  // ---- notebook ----
+  $('#notebook').innerHTML = G.notebook.length ? `<ul class="plain">${G.notebook.map(n =>
+    `<li><div class="src">#${n.step} · ${esc(sc.components[n.target].name)} · ${esc(TOOLS[n.tool].label)}</div>${esc(n.text)}</li>`).join('')}</ul>`
+    : '<span class="muted">Empty. Go look at something.</span>';
+
+  // ---- log ----
+  const tone = { info:'', mit:'color:var(--accent)', good:'color:var(--good)', warn:'color:var(--warn)', bad:'color:var(--bad)' };
+  $('#log').innerHTML = `<ul class="plain">${G.log.map(l => `<li style="${tone[l.tone]}"><span class="src">#${l.step}</span> ${esc(l.text)}</li>`).join('')}</ul>`;
+
+  // ---- walkthroughs ----
+  $('#tabs').innerHTML = WALKTHROUGHS.map((w, i) => `<button class="${WT && WT.i === i ? 'on' : ''}" data-tab="${i}">${esc(w.title)}</button>`).join('');
+  if (WT) {
+    const w = WALKTHROUGHS[WT.i];
+    $('#wt').innerHTML = `<p><b>${esc(SCENARIOS[w.scenario].title)}</b> · ${esc(w.desc)}</p>
+      <div class="steps">${w.steps.map((s, n) => {
+        const st = n < WT.done ? 'done' : n === WT.done ? 'next' : '';
+        return `<button class="${st}" ${n === WT.done ? '' : 'disabled'} data-step="${n}">${n + 1}. ${esc(s.label)}</button>`;
+      }).join('')}</div>
+      <p class="src" style="margin-top:12px">Started from a fresh incident. Press the highlighted button, then watch <i>Current state</i> above.</p>
+      <button data-restart="1">Reset this walkthrough</button>`;
+  }
+}
+
+function renderOver() {
+  const d = Engine.debrief(G), sc = G.sc, lost = G.status === 'lost';
+  const examined = d.examined.map(id => `${esc(sc.components[id].name)} <span class="muted">(${ROLE_LABEL[sc.components[id].role]})</span>`).join(', ') || 'nothing';
+  const fixLine = G.outcome.fix ? `<p>${esc(G.outcome.fix.outcome)}</p>` : '';
+  return `<div class="card over ${lost ? 'lost' : ''}">
+    <h3>${esc(d.grade)}</h3><p class="muted" style="margin:0 0 8px">${esc(d.blurb)} Final Impact ${G.impact}, ${G.step} actions, ${G.focus} Focus left.</p>
+    ${fixLine}
+    <p><b>What was really going on:</b> ${esc(sc.rootSummary)}</p>
+    <p><b>You examined:</b> ${examined}. <b>Wrong fixes:</b> ${d.wrongFixes}. <b>Mitigations used:</b> ${d.mitigations}.</p>
+    <p style="margin-bottom:4px"><b>What this incident teaches:</b></p>
+    <ul style="margin:0 0 12px;padding-left:20px">${sc.lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    <button class="primary" data-restart="1">Try this incident again</button>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>
