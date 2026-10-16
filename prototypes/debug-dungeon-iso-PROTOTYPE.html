@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexzonia · Debug Dungeon 2.5D (PROTOTYPE)</title>
+<style>
+  :root { --ink:#e8eaf6; --mute:#9aa3c7; --panel:rgba(14,18,38,.86); --line:rgba(140,155,255,.22); --accent:#8b9bff; --bad:#ff6b6b; --good:#5fd38d; --warn:#f5b84b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0b0f24; color:var(--ink); font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; backdrop-filter:blur(6px); }
+  .tag { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(139,155,255,.18); color:var(--accent); font-weight:600; }
+  .mute { color:var(--mute); } .small { font-size:12px; }
+  #topLeft { top:12px; left:12px; width:min(380px,44vw); }
+  #topLeft h1 { font-size:15px; margin:0 0 4px; display:flex; gap:8px; align-items:center; }
+  #finding { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  #topRight { top:12px; right:12px; width:min(300px,40vw); }
+  .bar { height:8px; background:rgba(255,255,255,.1); border-radius:99px; overflow:hidden; margin:3px 0 8px; }
+  .bar i { display:block; height:100%; background:var(--accent); transition:width .25s; }
+  .bar.hot i { background:var(--warn); } .bar.crit i { background:var(--bad); }
+  .stat { display:flex; justify-content:space-between; }
+  #toast { position:fixed; top:14px; left:50%; transform:translateX(-50%); max-width:min(560px,90vw); padding:9px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); opacity:0; transition:opacity .2s; pointer-events:none; text-align:center; }
+  #toast.show { opacity:1; } #toast.rej { border-color:var(--bad); color:var(--bad); }
+  #prompt { bottom:12px; left:50%; transform:translateX(-50%); width:min(760px,94vw); }
+  #prompt h2 { margin:0 0 6px; font-size:15px; }
+  .items { display:flex; flex-wrap:wrap; gap:6px; }
+  button { font:inherit; font-size:13px; color:var(--ink); background:rgba(255,255,255,.07); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); background:rgba(139,155,255,.16); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#0b0f24; border-color:var(--accent); font-weight:650; }
+  button.on { border-color:var(--accent); background:rgba(139,155,255,.22); }
+  button.fix { border-color:rgba(245,184,75,.5); }
+  kbd { display:inline-block; min-width:18px; text-align:center; font:600 11px system-ui; padding:1px 5px; margin-right:6px; border-radius:5px; background:rgba(255,255,255,.14); }
+  .cost { opacity:.6; font-size:11px; margin-left:5px; }
+  #nbBtn { position:fixed; right:12px; bottom:12px; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(380px,92vw); background:rgba(10,13,30,.96); border-left:1px solid var(--line); padding:14px; overflow:auto; transform:translateX(100%); transition:transform .2s; z-index:5; }
+  #drawer.open { transform:none; }
+  #drawer h3 { margin:14px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); }
+  #drawer .e { padding:8px 0; border-bottom:1px solid var(--line); }
+  #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(6,8,20,.78); z-index:10; padding:16px; overflow:auto; }
+  #overlay.show { display:flex; }
+  .modal { width:min(680px,96vw); background:#10152e; border:1px solid var(--line); border-radius:16px; padding:22px 24px; }
+  .modal h1 { margin:0 0 4px; font-size:24px; } .modal h2 { margin:0 0 6px; font-size:22px; }
+  .modal ul { padding-left:20px; margin:6px 0 14px; }
+  .scn { display:block; width:100%; text-align:left; margin:8px 0; padding:12px 14px; }
+  .scn b { display:block; font-size:15px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="topLeft" class="panel">
+  <h1>Debug Dungeon <span class="tag">2.5D PROTOTYPE</span></h1>
+  <div id="symptom" class="small"></div>
+  <div id="finding" class="small"></div>
+</div>
+<div id="topRight" class="panel"></div>
+<div id="toast"></div>
+<div id="prompt" class="panel"></div>
+<button id="nbBtn">Notebook &amp; log <kbd>Tab</kbd></button>
+<div id="drawer"></div>
+<div id="overlay"></div>
+
+<!-- ============================ DATA + PURE ENGINE (unchanged from the logic prototype) ============================ -->
+<script id="engine">
+
+// ---- Tools: what the player can do to a component ----
+const TOOLS = {
+  logs:    { label:'Read logs',     cost:1 },
+  metrics: { label:'Check metrics', cost:1 },
+  changes: { label:'What changed?', cost:2 },
+  trace:   { label:'Trace request', cost:3 },
+  isolate: { label:'Isolate it',    cost:3 },
+};
+const ROLE_LABEL = { cause:'the real cause', symptom:'a victim of the cause', decoy:'a loud decoy', innocent:'an innocent bystander' };
+
+// ---- Incidents are pure data. Roles are hidden from the player until the debrief. ----
+const SCENARIOS = {
+  slow_checkout: {
+    id:'slow_checkout', title:'The Slow Checkout',
+    symptom:'Customers report checkout takes 30+ seconds, then fails. Support tickets are piling up.',
+    focus:14, startImpact:25, baseImpact:7,
+    components:{
+      gateway:{ name:'Gateway', role:'symptom', calls:['checkout'], clues:{
+        logs:'504 Gateway Timeout ×2,311 in the last 10 min. Upstream: Checkout.',
+        metrics:'Error rate 41%. p99 latency pinned at 30s (the timeout).',
+        changes:'No deploys in 14 days.',
+        trace:'The whole 30s is spent waiting on Checkout. Nothing slow inside Gateway itself.',
+        isolate:'Gateway with Checkout stubbed out answers in 12ms. Gateway is fine.' }},
+      checkout:{ name:'Checkout', role:'symptom', calls:['cart','inventory','payments'], clues:{
+        logs:'Timeout calling Cart (5s) — retry 1/3 … retry 2/3 … retry 3/3. Same pattern on every request.',
+        metrics:'Worker threads 100% busy, all waiting on Cart. CPU only 8%.',
+        changes:'Last deploy 9 days ago. Unrelated.',
+        trace:'Per request: Inventory 40ms, Payments 220ms, Cart 14,800ms (×3 with retries).',
+        isolate:'Checkout with Cart stubbed out: 310ms. Checkout is fine by itself.' }},
+      cart:{ name:'Cart', role:'cause', calls:['cache','db'], clues:{
+        logs:'Cache MISS key=cart:u8812:1718291004. SLOW QUERY: SELECT * FROM cart_items (4.2s). Every request looks like this.',
+        metrics:'p99 14s. Cache hit rate 0% (was 94% yesterday).',
+        changes:'Deploy #482, 41 minutes ago: "Refactor cart key builder". Problems started 40 minutes ago.',
+        trace:'Cart time: cache lookup 3ms (miss), DB query 4,100ms.',
+        isolate:'With the real cache and DB: slow. With the cache pre-seeded using the OLD key format: fast. The new key format never hits.' }},
+      cache:{ name:'Cart Cache', role:'innocent', calls:[], clues:{
+        logs:'Memory 12%. Evictions 0. Millions of GET misses, nothing erroring.',
+        metrics:'Healthy. Hit rate 0%, but that is a symptom of what is being asked for, not of the cache.',
+        changes:'No changes in 30 days.',
+        trace:'GET latency 1ms. Fast and empty.',
+        isolate:'Set/get round-trip works. The cache passes its own health check.' }},
+      db:{ name:'Orders DB', role:'decoy', calls:[], clues:{
+        logs:'CPU 98%. Connection pool exhausted (100/100). 9,000 slow queries logged. This is the loudest fire in the building.',
+        metrics:'CPU 98%, connections maxed, disk fine.',
+        changes:'No schema changes. Last migration 3 weeks ago.',
+        trace:'The queries are simple, identical reads — but at about 40× normal volume.',
+        isolate:'At its normal load the DB is fine. It is overwhelmed, not broken.' }},
+      inventory:{ name:'Inventory', role:'innocent', calls:[], clues:{
+        logs:'WARN stock sync lag 3s. (It has logged this for weeks.)',
+        metrics:'Healthy. p99 40ms.',
+        changes:'Deploy 2 days ago: a minor logging tweak.',
+        trace:'40ms, steady.',
+        isolate:'Behaves normally in isolation.' }},
+      payments:{ name:'Payments', role:'decoy', calls:[], clues:{
+        logs:'ERROR 14 requests abandoned mid-charge: caller (Checkout) hung up after timeout.',
+        metrics:'Error rate 3% (up from 0.1%).',
+        changes:'Deploy yesterday: card-network certificate update.',
+        trace:'220ms per charge, normal. The errors are callers giving up.',
+        isolate:'Charges succeed normally when called directly.' }},
+    },
+    mitigations:[
+      { id:'m_noretry', label:'Turn off Checkout retries (feature flag)', cost:1, rateMult:0.6,
+        note:'The retry storm stops multiplying load. Cart is still slow, but customers are now failing more slowly.' },
+      { id:'m_scaledb', label:'Scale Orders DB up 2×', cost:2, rateMult:0.6,
+        note:'Buys breathing room. It does not explain why the DB is drowning.' },
+      { id:'m_restart', label:'Restart Cart', cost:1, rateMult:1,
+        note:'Cart comes back… and is slow again within 90 seconds. That bought nothing.' },
+    ],
+    fixes:[
+      { id:'f_gw_timeout', target:'gateway', label:'Raise Gateway timeout to 60s', cost:2, kind:'wrong', penalty:10,
+        outcome:'Customers now wait a full minute before seeing the same error. You hid the symptom from your own dashboard, not from customers.' },
+      { id:'f_co_retries', target:'checkout', label:'Add more retries to Checkout', cost:2, kind:'wrong', penalty:20,
+        outcome:'More retries means more load on a Cart that is already drowning. The retry storm gets worse.' },
+      { id:'f_co_scale', target:'checkout', label:'Scale Checkout to 20 instances', cost:2, kind:'wrong', penalty:10,
+        outcome:'More Checkout instances means more simultaneous calls into Cart. You are pushing harder on the bruise.' },
+      { id:'f_rollback', target:'cart', label:'Roll back Cart deploy #482', cost:2, kind:'root',
+        outcome:'Cart cache keys return to the stable format. Hit rate climbs from 0% to 94% in two minutes, DB CPU falls, Checkout recovers.' },
+      { id:'f_cart_index', target:'cart', label:'Add an index to cart_items', cost:2, kind:'wrong', penalty:10,
+        outcome:'The index build locks the table at peak traffic. The query was already indexed. This was not the problem.' },
+      { id:'f_cache_flush', target:'cache', label:'Flush and rebuild the cache', cost:2, kind:'wrong', penalty:15,
+        outcome:'A cold cache plus a bad key format sends even more traffic to the DB for a few minutes.' },
+      { id:'f_db_kill', target:'db', label:'Kill all slow queries', cost:2, kind:'wrong', penalty:10,
+        outcome:'The killed queries come straight back, because 40× normal volume is still arriving.' },
+      { id:'f_inv_revert', target:'inventory', label:"Revert Inventory's logging tweak", cost:2, kind:'wrong', penalty:10,
+        outcome:'Inventory was never slow. You deployed to production at the worst moment, for nothing.' },
+      { id:'f_pay_timeout', target:'payments', label:'Raise the Payments timeout', cost:2, kind:'wrong', penalty:10,
+        outcome:'Payments was never the bottleneck; it was receiving abandoned requests. Charges can now hang longer.' },
+    ],
+    rootSummary:'Cart deploy #482 changed the cache key format, so the cache never hit. Every cart read fell through to the DB (40× load). Cart went slow, Checkout retried (3× more load), and Gateway timed out.',
+    lessons:[
+      'Symptoms live downstream. The loudest fire (the DB at 98%) was a victim, not the culprit.',
+      '"What changed?" is often the fastest question. Deploy #482 landed one minute before the problems did.',
+      'Mitigate before you root-cause. Stopping the retry storm bought time to think.',
+      'Retries are load multipliers. Retrying a struggling dependency makes it struggle harder.',
+      'A 0% hit rate can be a cache working perfectly with the wrong keys.',
+    ],
+  },
+
+  double_emails: {
+    id:'double_emails', title:'The Double Emails',
+    symptom:'Customers are getting the same order-confirmation email 2–3 times. It started 3 days ago.',
+    focus:12, startImpact:15, baseImpact:6,
+    components:{
+      orders:{ name:'Orders API', role:'decoy', calls:['queue'], clues:{
+        logs:'OrderPlaced published once per order (ord_9913 → msg_1). One line per order.',
+        metrics:'Healthy. Publish count equals order count.',
+        changes:'Deploy 5 hours ago: tweaked the HTTP client retry policy.',
+        trace:'One publish per order. No double-send here.',
+        isolate:'Replaying 100 orders produced exactly 100 messages.' }},
+      queue:{ name:'Message Queue', role:'symptom', calls:['mailer'], clues:{
+        logs:'msg_1 delivered 3 times: t=0s, t=31s, t=62s. No ack received between deliveries.',
+        metrics:'Redelivery rate 38% (was 0.2%). Visibility timeout: 30s.',
+        changes:'Config unchanged for 90 days.',
+        trace:'Gaps between deliveries are almost exactly 30s: the visibility timeout expiring before an ack.',
+        isolate:'Works as designed: if there is no ack in 30s, it redelivers. That is the promise.' }},
+      mailer:{ name:'Mailer Worker', role:'cause', calls:['templates','smtp'], clues:{
+        logs:'Processing msg_1… rendering invoice PDF… done in 44s… ack. Also: "Processing msg_1" started again while the first was still running.',
+        metrics:'Average job time 44s (was 2s). Duplicate-send rate 38%.',
+        changes:'Deploy 3 days ago: "Attach invoice PDF to confirmation email".',
+        trace:'Job time: template 0.2s, PDF render 41s, SMTP 0.8s.',
+        isolate:'One message, nothing else running: sends exactly once, in 44s. Duplicates only appear through the queue.' }},
+      templates:{ name:'Template Service', role:'innocent', calls:[], clues:{
+        logs:'Cold-start warnings, as usual.',
+        metrics:'Healthy. p99 200ms.',
+        changes:'Deploy 2 days ago: new footer text.',
+        trace:'Renders in 0.2s.',
+        isolate:'Renders correctly and idempotently.' }},
+      smtp:{ name:'Email Provider', role:'decoy', calls:[], clues:{
+        logs:'Provider note: "Duplicate recipient detected, message accepted anyway."',
+        metrics:'100% delivered. Zero provider-side retries.',
+        changes:'Status page: no incidents.',
+        trace:'0.8s per send.',
+        isolate:'Sandbox send: delivered once.' }},
+    },
+    mitigations:[
+      { id:'m_pause', label:'Pause confirmation emails', cost:1, rateMult:0.3,
+        note:'Duplicates stop because emails stop. Customers now get nothing, but at least not three copies.' },
+      { id:'m_scale', label:'Add 3× more Mailer workers', cost:1, rateMult:1.4,
+        note:'More workers means more jobs racing the visibility timeout. The duplicates got worse.' },
+      { id:'m_switch', label:'Switch to the backup email provider', cost:2, rateMult:1,
+        note:'Same duplicates, different provider.' },
+    ],
+    fixes:[
+      { id:'f_ord_dedupe', target:'orders', label:'Deduplicate in the Orders publisher', cost:2, kind:'wrong', penalty:10,
+        outcome:'Orders was only ever publishing once. You added code to fix a problem it did not have.' },
+      { id:'f_q_timeout', target:'queue', label:'Raise the queue visibility timeout to 120s', cost:2, kind:'partial',
+        outcome:'Messages stop being redelivered while jobs finish under 2 minutes. The next time the Mailer gets slow, duplicates return. The missing idempotency is still a time bomb.' },
+      { id:'f_q_exactly', target:'queue', label:'Migrate to an "exactly-once" queue', cost:3, kind:'wrong', penalty:15,
+        outcome:'A multi-week migration in the middle of an incident, and exactly-once delivery still needs idempotent consumers in practice.' },
+      { id:'f_m_idem', target:'mailer', label:'Make the Mailer idempotent (skip message IDs already sent)', cost:2, kind:'root',
+        outcome:'The Mailer records each message ID it has handled. Redeliveries are acknowledged and skipped. Duplicates drop to zero, and will stay at zero even on slow days.' },
+      { id:'f_m_fastpdf', target:'mailer', label:'Speed up PDF rendering', cost:3, kind:'partial',
+        outcome:'Jobs now take 25s, under the 30s timeout. Duplicates stop today. Any slow day brings them back.' },
+      { id:'f_t_footer', target:'templates', label:'Roll back the footer text change', cost:2, kind:'wrong', penalty:10,
+        outcome:'The footer text was never the issue. Customers just have the old footer back.' },
+      { id:'f_s_dedupe', target:'smtp', label:'Turn on provider-side dedupe', cost:2, kind:'wrong', penalty:10,
+        outcome:'The provider only dedupes identical messages within 5 seconds. Yours arrive 30 seconds apart. Nothing changes.' },
+    ],
+    rootSummary:'The Mailer deploy added a 41s PDF render. The queue only waits 30s for an ack, so it redelivers while the first job is still running. Nothing in the Mailer notices it already sent that message.',
+    lessons:[
+      'Check your first suspect, but verify it. Orders published exactly once.',
+      'At-least-once delivery means every consumer must tolerate duplicates (idempotency).',
+      'Raising the timeout fixes the trigger. Idempotency fixes the underlying property. One is a patch, the other is a fix.',
+      'Scaling out is not always a mitigation. It can amplify a race.',
+      '"Working as designed" is not "broken". The queue did exactly what it promised.',
+    ],
+  },
+};
+
+// ---- The pure engine. No DOM. This is the part worth keeping. ----
+const Engine = (() => {
+  const inspectedAny = (s, id) => Object.keys(s.inspected).some(k => k.split(':')[0] === id);
+  const pace = s => Math.round(s.sc.baseImpact * s.rateMult);
+  const reject = (s, text) => ({ ...s, last:{ rejected:true, text } });
+  const addLog = (s, tone, text) => [...s.log, { step:s.step, tone, text }];
+
+  // Settle: check the loss conditions after any action that didn't win.
+  function settle(s) {
+    if (s.status !== 'active') return s;
+    if (s.impact >= 100) return { ...s, impact:100, status:'lost', outcome:{ kind:'lost', why:'impact' } };
+    if (s.focus <= 0)    return { ...s, status:'lost', outcome:{ kind:'lost', why:'focus' } };
+    return s;
+  }
+
+  function start(sc) {
+    return { sc, step:0, focus:sc.focus, impact:sc.startImpact, rateMult:1, status:'active', outcome:null,
+             hypothesis:null, inspected:{}, notebook:[], mitigations:[], fixesTried:[],
+             log:[{ step:0, tone:'info', text:'You are paged: ' + sc.symptom }], last:null };
+  }
+
+  function reduce(s, a) {
+    if (s.status !== 'active') return reject(s, 'The incident is over. Start a new one.');
+    const sc = s.sc;
+
+    if (a.type === 'inspect') {
+      const tool = TOOLS[a.tool], comp = sc.components[a.target], key = a.target + ':' + a.tool;
+      if (!tool || !comp) return reject(s, 'Unknown tool or component.');
+      if (s.inspected[key]) return reject(s, 'You already did that. The answer is in your notebook.');
+      if (s.focus < tool.cost) return reject(s, `Not enough Focus: that costs ${tool.cost}, you have ${s.focus}.`);
+      const dImp = pace(s), step = s.step + 1;
+      return settle({ ...s, step, focus:s.focus - tool.cost, impact:s.impact + dImp,
+        inspected:{ ...s.inspected, [key]:true },
+        notebook:[...s.notebook, { step, target:a.target, tool:a.tool, text:comp.clues[a.tool] }],
+        last:{ text:`${tool.label} on ${comp.name}.`, dFocus:-tool.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'hypothesize') {
+      const comp = sc.components[a.target];
+      if (!comp) return reject(s, 'Unknown component.');
+      return { ...s, hypothesis:a.target,
+        log:addLog(s, 'info', `Hypothesis: the problem is in ${comp.name}.`),
+        last:{ text:`You commit to a hypothesis: ${comp.name}. (Free, but you will be held to it.)`, dFocus:0, dImpact:0 } };
+    }
+
+    if (a.type === 'mitigate') {
+      const m = sc.mitigations.find(x => x.id === a.id);
+      if (!m) return reject(s, 'Unknown mitigation.');
+      if (s.mitigations.includes(m.id)) return reject(s, 'Already applied.');
+      if (s.focus < m.cost) return reject(s, `Not enough Focus: that costs ${m.cost}, you have ${s.focus}.`);
+      const next = { ...s, step:s.step + 1, focus:s.focus - m.cost, rateMult:s.rateMult * m.rateMult, mitigations:[...s.mitigations, m.id] };
+      const dImp = pace(next);
+      return settle({ ...next, impact:s.impact + dImp,
+        log:addLog(next, 'mit', `${m.label}: ${m.note}`),
+        last:{ text:`Mitigation applied: ${m.label}.`, dFocus:-m.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'fix') {
+      const f = sc.fixes.find(x => x.id === a.id);
+      if (!f) return reject(s, 'Unknown fix.');
+      const comp = sc.components[f.target];
+      if (!inspectedAny(s, f.target)) return reject(s, `You have not even looked at ${comp.name}. Do not change what you have not inspected.`);
+      if (s.hypothesis !== f.target) return reject(s, `State your hypothesis first. Say that you believe ${comp.name} is the problem before you touch production.`);
+      if (s.fixesTried.includes(f.id)) return reject(s, 'You already tried that.');
+      if (s.focus < f.cost) return reject(s, `Not enough Focus: that costs ${f.cost}, you have ${s.focus}.`);
+      const step = s.step + 1, focus = s.focus - f.cost;
+      if (f.kind === 'root' || f.kind === 'partial') {
+        return { ...s, step, focus, status:'won', outcome:{ kind:f.kind, fix:f },
+          log:addLog({ ...s, step }, f.kind === 'root' ? 'good' : 'warn', `${f.label}: ${f.outcome}`),
+          last:{ text:`Fix applied: ${f.label}.`, dFocus:-f.cost, dImpact:0 } };
+      }
+      const dImp = pace(s) + f.penalty;
+      return settle({ ...s, step, focus, impact:s.impact + dImp, hypothesis:null,
+        fixesTried:[...s.fixesTried, f.id],
+        log:addLog({ ...s, step }, 'bad', `${f.label}: ${f.outcome} Your hypothesis about ${comp.name} is disproven.`),
+        last:{ text:`Fix failed: ${f.label}. Hypothesis cleared.`, dFocus:-f.cost, dImpact:dImp } });
+    }
+    return reject(s, 'Unknown action.');
+  }
+
+  function debrief(s) {
+    const examined = [...new Set(Object.keys(s.inspected).map(k => k.split(':')[0]))];
+    const o = s.outcome || {};
+    let grade, blurb;
+    if (o.kind === 'root') {
+      grade = (s.impact < 60 && s.fixesTried.length === 0) ? 'Clean resolution' : 'Resolved, with scars';
+      blurb = 'You found and fixed the root cause.';
+    } else if (o.kind === 'partial') {
+      grade = 'Patched, not fixed';
+      blurb = 'The pages stopped, but the underlying bug is still there.';
+    } else if (o.why === 'impact') {
+      grade = 'Customers walked away'; blurb = 'Impact hit 100 before you found the cause.';
+    } else {
+      grade = 'Out of steam. Time to escalate'; blurb = 'You ran out of Focus before resolving the incident.';
+    }
+    return { grade, blurb, examined, wrongFixes:s.fixesTried.length, mitigations:s.mitigations.length };
+  }
+
+  return { start, reduce, debrief, inspectedAny };
+})();
+
+</script>
+
+<!-- ============================ THROWAWAY 2.5D SHELL ============================ -->
+<script id="page">
+// ---- World layout: where each service lives on the iso grid. Pure presentation. ----
+// Buildings are 2x2 tiles. `health` is only shown AFTER the player checks that building's metrics.
+const MAP_W = 16, MAP_H = 13;
+const LAYOUT = {
+  slow_checkout: {
+    war:{ x:1, y:9 }, spawn:{ x:3.5, y:8 },
+    b:{
+      gateway:  { x:1,  y:5,  h:46, color:'#8b5cf6', health:'bad'  },
+      checkout: { x:5,  y:5,  h:60, color:'#3b82f6', health:'bad'  },
+      cart:     { x:9,  y:2,  h:54, color:'#06b6d4', health:'bad'  },
+      inventory:{ x:9,  y:6,  h:44, color:'#3b82f6', health:'ok'   },
+      payments: { x:9,  y:10, h:46, color:'#f59e0b', health:'warn' },
+      cache:    { x:13, y:1,  h:34, color:'#10b981', health:'ok'   },
+      db:       { x:13, y:5,  h:42, color:'#10b981', health:'bad'  },
+    } },
+  double_emails: {
+    war:{ x:1, y:8 }, spawn:{ x:3.5, y:7.5 },
+    b:{
+      orders:   { x:1,  y:4, h:46, color:'#8b5cf6', health:'ok'   },
+      queue:    { x:5,  y:4, h:36, color:'#10b981', health:'warn' },
+      mailer:   { x:9,  y:4, h:56, color:'#3b82f6', health:'bad'  },
+      templates:{ x:13, y:1, h:44, color:'#3b82f6', health:'ok'   },
+      smtp:     { x:13, y:7, h:46, color:'#f59e0b', health:'ok'   },
+    } },
+};
+const HEALTH_COLOR = { ok:'#5fd38d', warn:'#f5b84b', bad:'#ff6b6b' };
+
+// ---- helpers ----
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let cw, ch, dpr, S = 1, OX = 0, OY = 0;
+const proj = (x, y, z = 0) => ({ x:(x - y) * 32, y:(x + y) * 16 - z });
+function resize() {
+  dpr = window.devicePixelRatio || 1; cw = innerWidth; ch = innerHeight;
+  cv.width = cw * dpr; cv.height = ch * dpr;
+  const bw = (MAP_W + MAP_H) * 32, bh = (MAP_W + MAP_H) * 16 + 110;
+  S = Math.max(.4, Math.min(cw * .97 / bw, (ch - 100 - 130) / bh));
+  OX = cw / 2 - S * (MAP_W - MAP_H) * 16; OY = 90 + S * 110;
+}
+addEventListener('resize', resize);
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f)));
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
+}
+function poly(pts, fill, stroke) {
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+}
+// An extruded iso box. Visible faces: top, left-facing (+y side) and right-facing (+x side).
+function box(x, y, w, d, h, color, windows = true) {
+  const t = [proj(x, y, h), proj(x + w, y, h), proj(x + w, y + d, h), proj(x, y + d, h)];
+  const rightF = [proj(x + w, y, 0), proj(x + w, y + d, 0), proj(x + w, y + d, h), proj(x + w, y, h)];
+  const leftF  = [proj(x, y + d, 0), proj(x + w, y + d, 0), proj(x + w, y + d, h), proj(x, y + d, h)];
+  poly(leftF, shade(color, .72), 'rgba(0,0,0,.25)');
+  poly(rightF, shade(color, .52), 'rgba(0,0,0,.25)');
+  poly(t, shade(color, 1.08), 'rgba(255,255,255,.15)');
+  if (windows && h > 30) {
+    for (const [A, B, f] of [[leftF[0], leftF[1], .9], [rightF[0], rightF[1], .7]]) {
+      for (let r = 0; r < Math.floor(h / 18) - 1; r++) for (let c = 0; c < 3; c++) {
+        const u0 = .12 + c * .3, u1 = u0 + .18, v0 = .14 + r * (.7 / Math.max(1, Math.floor(h / 18) - 1)), v1 = v0 + .09;
+        const P = (u, v) => ({ x:A.x + (B.x - A.x) * u, y:A.y + (B.y - A.y) * u - h * v });
+        poly([P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], `rgba(255,236,170,${.22 * f + ((r * 3 + c) % 3 === 0 ? .25 : 0)})`);
+      }
+    }
+  }
+  return t;
+}
+
+// ---- game state ----
+let G = null, LAY = null, bld = [], roads = [], parts = [], player, keys = new Set(), version = 0, nearId = null, endTimer = null, toastTimer = null, T = 0;
+
+function newGame(id) {
+  clearTimeout(endTimer);
+  G = Engine.start(SCENARIOS[id]); LAY = LAYOUT[id]; version++;
+  bld = Object.entries(SCENARIOS[id].components).map(([cid, c]) => ({ id:cid, name:c.name, ...LAY.b[cid], w:2, d:2 }));
+  bld.push({ id:'war', name:'War Room', x:LAY.war.x, y:LAY.war.y, w:2, d:2, h:34, color:'#64748b' });
+  // roads: from east door of caller to west door of callee, routed through the free gap columns
+  roads = [];
+  bld.filter(b => b.id !== 'war').forEach(a => SCENARIOS[id].components[a.id].calls.forEach(cid => {
+    const b = bld.find(q => q.id === cid);
+    const pts = [[a.x + 2, a.y], [a.x + 2, b.y], [b.x - 1, b.y]].filter((p, i, arr) => !i || p[0] !== arr[i - 1][0] || p[1] !== arr[i - 1][1]);
+    const P = pts.map(p => ({ x:p[0] + .5, y:p[1] + .5 }));
+    let len = 0; const cum = [0];
+    for (let i = 1; i < P.length; i++) { len += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); cum.push(len); }
+    const tiles = new Set(); pts.forEach((p, i) => { if (!i) { tiles.add(p.join()); return; } const q = pts[i - 1]; const n = Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1])); for (let k = 0; k <= n; k++) tiles.add([q[0] + Math.sign(p[0] - q[0]) * k, q[1] + Math.sign(p[1] - q[1]) * k].join()); });
+    roads.push({ to:cid, P, cum, len, tiles:[...tiles].map(s => s.split(',').map(Number)), cars:[] });
+  }));
+  player = { x:LAY.spawn.x, y:LAY.spawn.y, walk:0, face:1 };
+  parts = []; nearId = null;
+  $('#overlay').classList.remove('show'); $('#drawer').classList.remove('open');
+  renderHUD(); renderPrompt(true);
+}
+
+function revealedHealth() {
+  const r = {};
+  bld.forEach(b => { if (b.id !== 'war' && G.inspected[b.id + ':metrics']) r[b.id] = b.health; });
+  if (G.status === 'won') bld.forEach(b => {
+    if (b.id === 'war') return;
+    r[b.id] = (G.outcome.kind === 'partial' && G.sc.components[b.id].role === 'cause') ? 'warn' : 'ok';
+  });
+  return r;
+}
+
+function act(a) {
+  const before = G.status;
+  G = Engine.reduce(G, a); version++;
+  showToast(G.last);
+  renderHUD(); renderPrompt(true);
+  if (before === 'active' && G.status !== 'active') endTimer = setTimeout(showEnd, 1300);
+}
+function showToast(l) {
+  if (!l) return; const t = $('#toast');
+  const d = l.rejected ? '' : `  ·  Focus ${l.dFocus || 0}  ·  Impact ${l.dImpact >= 0 ? '+' : ''}${l.dImpact || 0}`;
+  t.textContent = (l.rejected ? 'Not allowed: ' : '') + l.text + d;
+  t.className = 'show' + (l.rejected ? ' rej' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 4200);
+}
+
+// ---- HUD ----
+function renderHUD() {
+  const sc = G.sc, cls = G.impact >= 80 ? 'crit' : G.impact >= 60 ? 'hot' : '';
+  $('#symptom').innerHTML = `<b>${esc(sc.title)}.</b> ${esc(sc.symptom)}`;
+  const last = G.notebook[G.notebook.length - 1];
+  $('#finding').innerHTML = last ? `<span class="mute">Latest finding · ${esc(sc.components[last.target].name)} · ${esc(TOOLS[last.tool].label)}</span><br>${esc(last.text)}`
+    : '<span class="mute">Nothing learned yet. Walk up to a building and look around.</span>';
+  $('#topRight').innerHTML = `
+    <div class="stat"><span>Impact <span class="mute small">(100 = game over)</span></span><b>${G.impact}</b></div><div class="bar ${cls}"><i style="width:${G.impact}%"></i></div>
+    <div class="stat"><span>Focus</span><b>${G.focus} / ${sc.focus}</b></div><div class="bar"><i style="width:${G.focus / sc.focus * 100}%"></i></div>
+    <div class="stat small"><span class="mute">Impact per action</span><span>+${Math.round(sc.baseImpact * G.rateMult)}</span></div>
+    <div class="stat small"><span class="mute">Hypothesis</span><span>${G.hypothesis ? '★ ' + esc(sc.components[G.hypothesis].name) : 'none yet'}</span></div>`;
+  $('#drawer').innerHTML = `<div class="row" style="justify-content:space-between"><b>Notebook &amp; log</b><button id="closeDrawer">Close <kbd>Tab</kbd></button></div>
+    <h3>Notebook</h3>${G.notebook.length ? G.notebook.map(n => `<div class="e"><div class="mute small">#${n.step} · ${esc(sc.components[n.target].name)} · ${esc(TOOLS[n.tool].label)}</div>${esc(n.text)}</div>`).join('') : '<div class="mute">Empty.</div>'}
+    <h3>Incident log</h3>${G.log.map(l => `<div class="e" style="color:${{ good:'var(--good)', bad:'var(--bad)', warn:'var(--warn)', mit:'var(--accent)' }[l.tone] || 'inherit'}"><span class="mute small">#${l.step}</span> ${esc(l.text)}</div>`).join('')}`;
+}
+
+let promptSig = '';
+function itemsFor(id) {
+  const sc = G.sc;
+  if (id === 'war') return sc.mitigations.map(m => ({ label:m.label, cost:m.cost, done:G.mitigations.includes(m.id), a:{ type:'mitigate', id:m.id } }));
+  const items = Object.entries(TOOLS).map(([t, tl]) => ({ label:tl.label, cost:tl.cost, done:!!G.inspected[id + ':' + t], a:{ type:'inspect', tool:t, target:id } }));
+  items.push({ label:G.hypothesis === id ? '★ My hypothesis is here' : 'I think the problem is here', on:G.hypothesis === id, a:{ type:'hypothesize', target:id } });
+  if (Engine.inspectedAny(G, id)) sc.fixes.filter(f => f.target === id).forEach(f => items.push({ label:'Fix: ' + f.label, cost:f.cost, fix:true, done:G.fixesTried.includes(f.id), a:{ type:'fix', id:f.id } }));
+  return items;
+}
+let curItems = [];
+function renderPrompt(force) {
+  const sig = nearId + '|' + version; if (!force && sig === promptSig) return; promptSig = sig;
+  const el = $('#prompt'), over = G.status !== 'active';
+  if (!nearId) { curItems = []; el.innerHTML = `<span class="mute">Walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys. Stand next to a building to inspect it. The <b>War Room</b> is where you mitigate. Spend Focus wisely: every action costs customers.</span>`; return; }
+  const b = bld.find(q => q.id === nearId); curItems = itemsFor(nearId);
+  const locked = nearId !== 'war' && !Engine.inspectedAny(G, nearId);
+  el.innerHTML = `<h2>${esc(b.name)} <span class="mute small">${nearId === 'war' ? 'stop the bleeding without fixing the cause' : 'inspect · hypothesize · fix'}</span></h2>
+    <div class="items">${curItems.map((it, i) => `<button class="${it.on ? 'on' : ''} ${it.fix ? 'fix' : ''}" data-i="${i}" ${over || it.done ? 'disabled' : ''}><kbd>${i + 1}</kbd>${it.done ? '✓ ' : ''}${esc(it.label)}${it.cost ? `<span class="cost">${it.cost} Focus</span>` : ''}</button>`).join('')}</div>
+    ${locked ? '<div class="mute small" style="margin-top:6px">Inspect this building to unlock fix options. A fix also needs your hypothesis set here first.</div>' : ''}`;
+}
+$('#prompt').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !b.disabled) act(curItems[+b.dataset.i].a); });
+function toggleDrawer(v) { $('#drawer').classList.toggle('open', v); }
+$('#nbBtn').onclick = () => toggleDrawer();
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'closeDrawer') toggleDrawer(false); });
+
+// ---- overlays ----
+function showStart() {
+  const o = $('#overlay');
+  o.innerHTML = `<div class="modal"><h1>Debug Dungeon <span class="tag">2.5D PROTOTYPE · throwaway</span></h1>
+    <p class="mute" style="margin-top:0">Nexzonia · a service is on fire and you are the on-call engineer.</p>
+    <p><b>The question this prototype answers:</b> does investigating a broken system by <i>walking through it</i> feel like real incident work, and is it fun?</p>
+    <ul><li>Walk to a building and use tools on it. Each action costs <b>Focus</b> and lets customers slip away (<b>Impact</b>).</li>
+    <li>Check a building's <b>metrics</b> and its health lights up, but loud does not mean guilty.</li>
+    <li>The <b>War Room</b> offers mitigations: they buy time but fix nothing.</li>
+    <li>Set a <b>hypothesis</b> on a building, then fix it. Wrong fixes hurt.</li></ul>
+    <b>Pick an incident:</b>
+    ${Object.values(SCENARIOS).map(s => `<button class="scn" data-s="${s.id}"><b>${esc(s.title)}</b><span class="mute">${esc(s.symptom)}</span></button>`).join('')}
+    <div class="mute small">Move: WASD / arrows · Actions: click or number keys · Notebook: Tab</div></div>`;
+  o.classList.add('show');
+}
+function showEnd() {
+  const d = Engine.debrief(G), sc = G.sc, lost = G.status === 'lost', o = $('#overlay');
+  const ex = d.examined.map(id => `${esc(sc.components[id].name)} <span class="mute">(${ROLE_LABEL[sc.components[id].role]})</span>`).join(', ') || 'nothing';
+  o.innerHTML = `<div class="modal" style="border-color:${lost ? 'var(--bad)' : 'var(--accent)'}"><h2>${esc(d.grade)}</h2>
+    <p class="mute" style="margin-top:0">${esc(d.blurb)} Final Impact ${G.impact}, ${G.step} actions, ${G.focus} Focus left.</p>
+    ${G.outcome.fix ? `<p>${esc(G.outcome.fix.outcome)}</p>` : ''}
+    <p><b>What was really going on:</b> ${esc(sc.rootSummary)}</p>
+    <p><b>You examined:</b> ${ex}. <b>Wrong fixes:</b> ${d.wrongFixes}. <b>Mitigations used:</b> ${d.mitigations}.</p>
+    <b>What this incident teaches:</b><ul>${sc.lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    <div class="row"><button class="primary" data-s="${sc.id}">Try this incident again</button><button id="menuBtn">Other incidents</button><button id="lookBtn">Look around the city</button></div></div>`;
+  o.classList.add('show');
+}
+$('#overlay').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.s) newGame(b.dataset.s); else if (b.id === 'menuBtn') showStart(); else if (b.id === 'lookBtn') $('#overlay').classList.remove('show');
+});
+
+// ---- input ----
+addEventListener('keydown', e => {
+  if ($('#overlay').classList.contains('show')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'tab') { e.preventDefault(); toggleDrawer(); return; }
+  if (/^[1-9]$/.test(k)) { const it = curItems[+k - 1]; if (it && G.status === 'active' && !it.done) act(it.a); return; }
+  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+addEventListener('blur', () => keys.clear());
+
+// ---- simulation ----
+const rectDist = (px, py, b) => Math.hypot(px - Math.max(b.x, Math.min(px, b.x + b.w)), py - Math.max(b.y, Math.min(py, b.y + b.d)));
+function blocked(x, y) { const r = .28; return x < r || y < r || x > MAP_W - r || y > MAP_H - r || bld.some(b => x > b.x - r && x < b.x + b.w + r && y > b.y - r && y < b.y + b.d + r); }
+function update(dt) {
+  T += dt;
+  const sx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
+  const sy = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
+  if (sx || sy) {
+    let gx = sx + sy, gy = sy - sx; const n = Math.hypot(gx, gy); gx /= n; gy /= n;
+    const v = 3.6 * dt; if (!blocked(player.x + gx * v, player.y)) player.x += gx * v; if (!blocked(player.x, player.y + gy * v)) player.y += gy * v;
+    player.walk += dt; if (sx) player.face = sx;
+  }
+  let best = null, bd = 1.05;
+  bld.forEach(b => { const d = rectDist(player.x, player.y, b); if (d < bd) { bd = d; best = b.id; } });
+  if (best !== nearId) { nearId = best; renderPrompt(true); }
+
+  const rev = revealedHealth();
+  roads.forEach(r => {
+    const bad = rev[r.to] === 'bad' && G.status === 'active', want = bad ? 8 : 3;
+    while (r.cars.length < want) r.cars.push({ t:Math.random() * r.len });
+    while (r.cars.length > want) r.cars.pop();
+    r.cars.forEach(c => { c.t = (c.t + (bad ? .5 : 1.6) * dt) % r.len; });
+  });
+  // smoke / fire / sparks on revealed buildings; confetti on a clean win
+  bld.forEach(b => {
+    const h = rev[b.id]; if (!h || b.id === 'war') return;
+    const rate = h === 'bad' ? 14 : h === 'warn' ? 4 : 0;
+    if (Math.random() < rate * dt) parts.push({ x:b.x + 1 + (Math.random() - .5), y:b.y + 1 + (Math.random() - .5), z:b.h, vz:20 + Math.random() * 20, life:0, ttl:1.6, k:h === 'bad' ? (Math.random() < .45 ? 'fire' : 'smoke') : 'spark' });
+  });
+  if (G.status === 'won' && G.outcome.kind === 'root' && Math.random() < 30 * dt) {
+    const b = bld[Math.floor(Math.random() * (bld.length - 1))]; parts.push({ x:b.x + 1, y:b.y + 1, z:b.h, vz:50 + Math.random() * 40, life:0, ttl:1.4, k:'conf', c:['#8b9bff', '#5fd38d', '#f5b84b', '#ff8fa3'][Math.floor(Math.random() * 4)], dx:(Math.random() - .5) * 1.5, dy:(Math.random() - .5) * 1.5 });
+  }
+  parts.forEach(p => { p.life += dt; p.z += p.vz * dt; if (p.k === 'smoke') p.vz *= .99; if (p.k === 'conf') { p.vz -= 90 * dt; p.x += p.dx * dt; p.y += p.dy * dt; } });
+  parts = parts.filter(p => p.life < p.ttl);
+  renderPrompt(false);
+}
+
+// ---- drawing ----
+function carPos(r, t) { let i = 1; while (i < r.P.length - 1 && r.cum[i] < t) i++; const a = r.P[i - 1], b = r.P[i], f = (t - r.cum[i - 1]) / (r.cum[i] - r.cum[i - 1] || 1); return { x:a.x + (b.x - a.x) * f, y:a.y + (b.y - a.y) * f }; }
+
+function draw() {
+  const rev = revealedHealth();
+  // sky
+  const g = ctx.createLinearGradient(0, 0, 0, ch); g.addColorStop(0, '#0b0f24'); g.addColorStop(1, '#17204a');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+  // ground
+  const roadSet = new Set(); roads.forEach(r => r.tiles.forEach(t => roadSet.add(t.join())));
+  const near = nearId ? bld.find(b => b.id === nearId) : null;
+  for (let s = 0; s < MAP_W + MAP_H - 1; s++) for (let x = 0; x < MAP_W; x++) {
+    const y = s - x; if (y < 0 || y >= MAP_H) continue;
+    const isRoad = roadSet.has(x + ',' + y);
+    const glow = near && x >= near.x - 1 && x <= near.x + near.w && y >= near.y - 1 && y <= near.y + near.d;
+    const base = isRoad ? '#566191' : ((x + y) % 2 ? '#1c2748' : '#1f2b50');
+    poly([proj(x, y), proj(x + 1, y), proj(x + 1, y + 1), proj(x, y + 1)], glow && !isRoad ? '#33407a' : base, isRoad ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.03)');
+  }
+  // drawables sorted back-to-front
+  const D = [];
+  bld.forEach(b => D.push({ k:b.x + b.w / 2 + b.y + b.d / 2, f:() => drawBuilding(b, rev[b.id]) }));
+  roads.forEach(r => r.cars.forEach(c => { const p = carPos(r, c.t); D.push({ k:p.x + p.y, f:() => box(p.x - .17, p.y - .17, .34, .34, 7, rev[r.to] === 'bad' && G.status === 'active' ? '#ef4444' : '#cbd5e1', false) }); }));
+  D.push({ k:player.x + player.y, f:drawPlayer });
+  D.sort((a, b) => a.k - b.k).forEach(d => d.f());
+  // particles
+  parts.forEach(p => {
+    const q = proj(p.x, p.y, p.z), a = 1 - p.life / p.ttl;
+    ctx.beginPath();
+    if (p.k === 'smoke') { ctx.fillStyle = `rgba(150,155,175,${.45 * a})`; ctx.arc(q.x, q.y, 4 + p.life * 5, 0, 7); }
+    else if (p.k === 'fire') { ctx.fillStyle = `rgba(255,${120 + 100 * (1 - a) | 0},40,${.9 * a})`; ctx.arc(q.x, q.y, 3 + 2 * a, 0, 7); }
+    else if (p.k === 'spark') { ctx.fillStyle = `rgba(245,184,75,${a})`; ctx.arc(q.x, q.y, 1.8, 0, 7); }
+    else { ctx.fillStyle = p.c; ctx.fillRect(q.x, q.y, 3, 3); return; }
+    ctx.fill();
+  });
+  // labels on top of everything
+  bld.forEach(drawLabel);
+  // impact vignette (screen space)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const a = Math.max(0, (G.impact - 40) / 60) * (G.status === 'lost' ? .6 : .38) * (G.impact > 80 ? .8 + .2 * Math.sin(T * 6) : 1);
+  if (a > 0) { const v = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * .35, cw / 2, ch / 2, Math.max(cw, ch) * .75); v.addColorStop(0, 'rgba(255,40,40,0)'); v.addColorStop(1, `rgba(255,40,40,${a})`); ctx.fillStyle = v; ctx.fillRect(0, 0, cw, ch); }
+}
+function drawBuilding(b, health) {
+  const isWar = b.id === 'war', t = box(b.x, b.y, b.w, b.d, b.h, b.color);
+  const c = proj(b.x + 1, b.y + 1, b.h);
+  if (isWar) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x, c.y - 26); ctx.stroke(); ctx.fillStyle = Math.sin(T * 5) > 0 ? '#ff6b6b' : '#7f2a2a'; ctx.beginPath(); ctx.arc(c.x, c.y - 27, 3.5, 0, 7); ctx.fill(); }
+  else { poly([proj(b.x + .3, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + 1.7, b.h + 4), proj(b.x + .3, b.y + 1.7, b.h + 4)], shade(b.color, 1.25)); }
+  if (health) { ctx.fillStyle = HEALTH_COLOR[health]; ctx.shadowColor = HEALTH_COLOR[health]; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(c.x, c.y - (isWar ? 0 : 8), 5, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
+}
+function drawLabel(b) {
+  const c = proj(b.x + 1, b.y + 1, b.h + 22), isNear = b.id === nearId;
+  ctx.font = `${isNear ? 700 : 600} 13px system-ui,sans-serif`; ctx.textAlign = 'center';
+  const w = ctx.measureText(b.name).width + 14;
+  ctx.fillStyle = isNear ? 'rgba(139,155,255,.95)' : 'rgba(10,13,30,.82)';
+  ctx.beginPath(); ctx.roundRect(c.x - w / 2, c.y - 13, w, 20, 6); ctx.fill();
+  ctx.fillStyle = isNear ? '#0b0f24' : '#e8eaf6'; ctx.fillText(b.name, c.x, c.y + 1);
+  if (b.id !== 'war') {
+    Object.keys(TOOLS).forEach((t, i) => { ctx.fillStyle = G.inspected[b.id + ':' + t] ? '#8b9bff' : 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.arc(c.x - 16 + i * 8, c.y + 13, 2.6, 0, 7); ctx.fill(); });
+    if (G.hypothesis === b.id) { ctx.fillStyle = '#f5b84b'; ctx.font = '700 20px system-ui'; ctx.fillText('★', c.x, c.y - 20 + Math.sin(T * 4) * 3); }
+  }
+}
+function drawPlayer() {
+  const p = proj(player.x, player.y), bob = Math.abs(Math.sin(player.walk * 10)) * 2;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 9, 4.5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#8b9bff'; ctx.beginPath(); ctx.roundRect(p.x - 6, p.y - 22 - bob, 12, 20, 5); ctx.fill();
+  ctx.fillStyle = '#f2d3b3'; ctx.beginPath(); ctx.arc(p.x, p.y - 27 - bob, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b2147'; ctx.beginPath(); ctx.arc(p.x + 2 * player.face, p.y - 28 - bob, 1.3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e8eaf6'; ctx.font = '600 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText('you', p.x, p.y - 38 - bob);
+}
+
+let last = performance.now();
+function frame(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+resize(); newGame('slow_checkout'); showStart(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
