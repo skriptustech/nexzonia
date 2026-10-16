@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexzonia · Lesson 1 (PROTOTYPE)</title>
+<style>
+  :root { --ink:#e8eaf6; --mute:#9aa3c7; --panel:rgba(14,18,38,.88); --line:rgba(140,155,255,.24); --accent:#8b9bff; --ada:#ffb86b; --bad:#ff6b6b; --good:#5fd38d; --warn:#f5b84b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0b0f24; color:var(--ink); font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 14px; backdrop-filter:blur(6px); }
+  .tag { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(139,155,255,.18); color:var(--accent); font-weight:600; }
+  .mute { color:var(--mute); } .small { font-size:12px; }
+  #left { position:fixed; top:12px; left:12px; width:min(360px,42vw); display:flex; flex-direction:column; gap:10px; }
+  #left .panel { position:static; }
+  #lessonCard h1 { font-size:15px; margin:0 0 3px; display:flex; gap:8px; align-items:center; }
+  #ada { border-color:rgba(255,184,107,.55); display:flex; gap:10px; }
+  #ada.pulse { animation:pulse 1.2s ease-out 1; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(255,184,107,.7); } 100% { box-shadow:0 0 0 14px rgba(255,184,107,0); } }
+  .av { flex:none; width:34px; height:34px; border-radius:50%; background:var(--ada); color:#2a1a05; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .av.solo { background:#3a4162; color:var(--mute); }
+  #ada b { color:var(--ada); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  #findingCard .src { color:var(--mute); font-size:12px; }
+  #right { position:fixed; top:12px; right:12px; width:min(300px,40vw); }
+  .bar { height:8px; background:rgba(255,255,255,.1); border-radius:99px; overflow:hidden; margin:3px 0 8px; }
+  .bar i { display:block; height:100%; background:var(--good); transition:width .3s, background .3s; }
+  .bar.hot i { background:var(--warn); } .bar.crit i { background:var(--bad); }
+  .bar.focus i { background:var(--accent); }
+  .stat { display:flex; justify-content:space-between; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:99px; background:rgba(255,255,255,.08); }
+  .chip.gone { opacity:.45; text-decoration:line-through; } .chip.happy { background:rgba(95,211,141,.22); }
+  #toast, #toast2 { position:fixed; left:50%; transform:translateX(-50%); max-width:min(600px,92vw); padding:8px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); opacity:0; transition:opacity .2s; pointer-events:none; text-align:center; z-index:4; }
+  #toast { top:14px; } #toast2 { top:60px; border-color:var(--ada); }
+  #toast.show, #toast2.show { opacity:1; } #toast.rej { border-color:var(--bad); color:var(--bad); } #toast.bad { border-color:var(--bad); }
+  #prompt, #card { bottom:12px; left:50%; transform:translateX(-50%); width:min(780px,94vw); }
+  #prompt h2, #card h2 { margin:0 0 4px; font-size:15px; }
+  .items { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  button { font:inherit; font-size:13px; color:var(--ink); background:rgba(255,255,255,.07); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; text-align:left; }
+  button:hover:not(:disabled) { border-color:var(--accent); background:rgba(139,155,255,.16); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#0b0f24; border-color:var(--accent); font-weight:650; }
+  button.on { border-color:var(--accent); background:rgba(139,155,255,.22); }
+  button.fix { border-color:rgba(245,184,75,.5); }
+  button .sub { display:block; font-size:11px; color:var(--mute); }
+  kbd { display:inline-block; min-width:18px; text-align:center; font:600 11px system-ui; padding:1px 5px; margin-right:6px; border-radius:5px; background:rgba(255,255,255,.14); }
+  .cost { opacity:.6; font-size:11px; margin-left:5px; }
+  #bottomBtns { position:fixed; right:12px; bottom:12px; display:flex; gap:8px; z-index:3; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(400px,94vw); background:rgba(10,13,30,.97); border-left:1px solid var(--line); padding:14px; overflow:auto; transform:translateX(100%); transition:transform .2s; z-index:6; }
+  #drawer.open { transform:none; }
+  #drawer h3 { margin:14px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); }
+  #drawer .e { padding:8px 0; border-bottom:1px solid var(--line); }
+  #drawer .locked { opacity:.35; }
+  #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(6,8,20,.82); z-index:10; padding:16px; overflow:auto; }
+  #overlay.show { display:flex; }
+  .modal { width:min(700px,96vw); background:#10152e; border:1px solid var(--line); border-radius:16px; padding:22px 24px; }
+  .modal h1 { margin:0 0 4px; font-size:24px; } .modal h2 { margin:0 0 6px; font-size:22px; }
+  .modal ul { padding-left:20px; margin:6px 0 14px; }
+  .scn { display:block; width:100%; margin:8px 0; padding:12px 14px; }
+  .scn b { display:block; font-size:15px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="left">
+  <div id="lessonCard" class="panel"><h1 id="lessonTitle"></h1><div id="symptom" class="small"></div></div>
+  <div id="ada" class="panel"></div>
+  <div id="findingCard" class="panel small"></div>
+</div>
+<div id="right" class="panel"></div>
+<div id="toast"></div><div id="toast2"></div>
+<div id="prompt" class="panel"></div>
+<div id="card" class="panel" style="display:none"></div>
+<div id="bottomBtns"><button id="cdxBtn">Notebook &amp; Codex <kbd>Tab</kbd></button></div>
+<div id="drawer"></div>
+<div id="overlay"></div>
+
+<!-- ============================ DATA ============================ -->
+<script id="data">
+// ---- Tools: only three, because a beginner should not face five at once. ----
+const TOOLS = {
+  metrics: { label:'Measure it',          sub:'see the numbers (metrics)',   cost:1 },
+  logs:    { label:'Listen in',           sub:'read its diary (logs)',       cost:1 },
+  changes: { label:'Ask: what changed?',  sub:'the detective\'s best question', cost:2 },
+};
+const ROLE_LABEL = { cause:'the real cause', symptom:'where the effect shows up', decoy:'a loud decoy', innocent:'an innocent bystander' };
+
+// ---- The Codex: terms you pick up by playing, each in plain words. ----
+const CODEX = {
+  metrics:    { term:'Metrics',        def:'Numbers that show how a system is doing: how fast, how busy, how many errors.' },
+  logs:       { term:'Logs',           def:'The diary a system writes about what it did. Read it to see what actually happened.' },
+  latency:    { term:'Latency',        def:'How long something takes to respond. Customers feel this one directly.' },
+  load:       { term:'Load',           def:'How hard something is working compared with its limit. 98% means it is nearly maxed out.' },
+  queue:      { term:'Queue',          def:'A line of work waiting its turn. A growing queue means work arrives faster than it is finished.' },
+  cache:      { term:'Cache',          def:'A fast place near the front that keeps recent answers, so slow work is not repeated.' },
+  hitrate:    { term:'Cache hit rate', def:'How often the answer was already in the cache. Low means the cache is not helping, so everything lands on the slow thing behind it.' },
+  symptom:    { term:'Symptom vs. cause', def:'What you see (a busy warehouse) is often downstream of what is really wrong. Ask: who is sending it this work?' },
+  deploy:     { term:'Deploy',         def:'Sending new code live. Many incidents start right after one, so always ask what changed.' },
+  hypothesis: { term:'Hypothesis',     def:'Your best guess, stated before you act, so you can check whether you were right.' },
+  rollback:   { term:'Rollback',       def:'Undoing a change by returning to the previous version. Often the fastest safe fix.' },
+};
+// which clue unlocks which Codex entries
+const CODEX_ON = {
+  'app:metrics':['metrics','latency'], 'db:metrics':['load','queue'], 'cache:metrics':['cache','hitrate','symptom'],
+  'app:logs':['logs'], 'cache:logs':['logs'], 'db:logs':['logs'], 'app:changes':['deploy'],
+};
+
+// ---- One bug, two disguises. Same ids and roles, different clothes. ----
+const THEMES = {
+  empty_shelf: {
+    id:'empty_shelf', title:'Lesson 1 · The Empty Shelf',
+    symptom:'Customers say their orders take forever, then fail. Support is flooded.',
+    app:'Storefront', cache:'Shelf', db:'Warehouse',
+    appNoun:'storefront', cacheNoun:'shelf', dbNoun:'warehouse', thing:'order', staff:'shop assistants', dbStaff:'warehouse clerks',
+    blurb:{ app:'Where customers\' orders arrive.', cache:'A quick shelf by the shop. Keeps popular answers so the warehouse is not bothered.', db:'Holds everything. Slow to walk to, so you want to go there as little as possible.' },
+    rel:12, ago:40, relName:'Tidy up the label maker', rollbackLabel:'Roll back update #12 (bring back the old label maker)',
+    keys:['cake:maya:1718291004', 'cake:maya:1718291019', 'tea:joe:1718291022'],
+    customers:[
+      { name:'Maya',  story:'She needed the cake for her sister\'s wedding.' },
+      { name:'Joe',   story:'His lunch break ran out.' },
+      { name:'Priya', story:'It was a birthday gift for her dad.' },
+      { name:'Sam',   story:'The school supplies were for tomorrow morning.' },
+      { name:'Leo',   story:'His little brother was hungry.' },
+    ],
+  },
+  ticket_rush: {
+    id:'ticket_rush', title:'Lesson 1b · The Ticket Rush (new disguise)',
+    symptom:'Fans trying to buy concert tickets are stuck on a spinning wheel, then get errors.',
+    app:'Box Office', cache:'Notice Board', db:'Archive',
+    appNoun:'box office', cacheNoun:'notice board', dbNoun:'archive', thing:'ticket request', staff:'ticket sellers', dbStaff:'archive clerks',
+    blurb:{ app:'Where ticket requests arrive.', cache:'A board by the door listing seats that were just checked.', db:'The archive of every seat ever sold. Big, careful, and slow.' },
+    rel:31, ago:27, relName:'Simplify the seat codes', rollbackLabel:'Roll back update #31 (bring back the old seat codes)',
+    keys:['seat:A12:1718300001', 'seat:A13:1718300017', 'seat:C07:1718300019'],
+    customers:[
+      { name:'Nia',   story:'She wanted to surprise her mum with a ticket.' },
+      { name:'Omar',  story:'He had saved for months for this show.' },
+      { name:'Zoe',   story:'Her friends were all waiting on her answer.' },
+      { name:'Kai',   story:'He was buying for a whole school group.' },
+      { name:'Rosa',  story:'It was the last show of her favourite band.' },
+    ],
+  },
+};
+
+function makeScenario(t) {
+  const roll = t.rel;
+  return {
+    id:t.id, title:t.title, symptom:t.symptom, theme:t,
+    focus:10, startImpact:5, baseImpact:4,
+    components:{
+      app:{ name:t.app, role:'cause', calls:['cache', 'db'], clues:{
+        metrics:`Each ${t.thing} takes 14 seconds to finish. Normally about 1. (Latency: how long something takes.) Nearly all that time is spent waiting on the ${t.dbNoun}.`,
+        logs:`"Looked on the ${t.cacheNoun}: nothing there. Went to the ${t.dbNoun}: waited 13 seconds." This repeats for every single ${t.thing}.`,
+        changes:`Update #${roll} went live ${t.ago + 1} minutes ago: "${t.relName}". The slowness began ${t.ago} minutes ago. (Deploy: sending new code live. Trouble often starts right after one.)` } },
+      cache:{ name:t.cache, role:'symptom', calls:[], clues:{
+        metrics:`The ${t.cacheNoun} has plenty of room and nothing is broken. But it answered 0 of every 100 questions. Normally 94. (Cache hit rate: how often the answer was already saved close by.)`,
+        logs:`Every question uses a label that was never saved: "${t.keys[0]}", "${t.keys[1]}", "${t.keys[2]}". Each label ends in a fresh timestamp, so no saved item can ever match.`,
+        changes:`Nobody has touched the ${t.cacheNoun} in 30 days.` } },
+      db:{ name:t.db, role:'decoy', calls:[], clues:{
+        metrics:`The ${t.dbNoun} is at 98% of its limit with a long line waiting. Normally 20%. (Load: how hard something is working. Queue: a line of work waiting its turn.) It is the busiest place in town.`,
+        logs:`Every request is a simple one. There are just about 40 times more of them than usual.`,
+        changes:`No changes in 3 weeks.` } },
+    },
+    mitigations:[],
+    fixes:[
+      { id:'f_rollback', target:'app', label:t.rollbackLabel, cost:2, kind:'root',
+        outcome:`The old labels are back. The ${t.cacheNoun} starts answering again, the ${t.dbNoun} line shrinks, and every ${t.thing} is quick again.` },
+      { id:'f_staff', target:'app', label:`Add more ${t.staff} (scale up the ${t.app})`, cost:2, kind:'wrong', penalty:12,
+        outcome:`More ${t.staff} all walk to the same useless ${t.cacheNoun} and the same overloaded ${t.dbNoun}. More hands, same bottleneck.` },
+      { id:'f_restock', target:'cache', label:`Restock the ${t.cacheNoun} (clear and refill the cache)`, cost:2, kind:'wrong', penalty:12,
+        outcome:`The ${t.cacheNoun} fills up under the old labels. New questions still use new labels, so nothing matches. The refill was wasted work.` },
+      { id:'f_clerks', target:'db', label:`Add more ${t.dbStaff} (scale up the ${t.db})`, cost:2, kind:'partial',
+        outcome:`The line moves faster, so orders finish. But the ${t.dbNoun} is still doing 40 times the work it should. You bought time, not a fix. One busy hour and the line is back.` },
+    ],
+    rootSummary:`Update #${roll} changed how the ${t.appNoun} labels things, so the ${t.cacheNoun} never recognised a question again. Every ${t.thing} fell through to the ${t.dbNoun} (40× the work), a line formed, and customers waited until they gave up.`,
+    lessons:[
+      'The busiest place (the ' + t.dbNoun + ') was a symptom. Ask who is sending it the work.',
+      '"What changed?" found the culprit in one question. Update #' + roll + ' landed one minute before the trouble.',
+      'A cache can be perfectly healthy and still useless if nobody can find anything in it.',
+      'A fix that removes the cause (rollback) beats one that merely adds capacity.',
+    ],
+    replay:[
+      { focus:'app',   broken:false, title:'1 · A change goes live',           text:`Update #${roll} ships: "${t.relName}". Everything still looks fine for a moment.` },
+      { focus:'cache', broken:true,  title:'2 · The labels stop matching',      text:`The ${t.appNoun} now writes labels differently. The ${t.cacheNoun} only knows the old ones, so every lookup misses. Hit rate: 94% → 0%.` },
+      { focus:'db',    broken:true,  title:'3 · Everything goes to the ' + t.dbNoun, text:`With the ${t.cacheNoun} no use, every ${t.thing} makes the long walk to the ${t.dbNoun}: 40× the usual work.` },
+      { focus:'db',    broken:true,  title:'4 · The line grows',                text:`The ${t.dbNoun} can only serve one at a time, so the queue builds. Each ${t.thing} now takes 14 seconds instead of 1.` },
+      { focus:'gate',  broken:true,  title:'5 · People give up',                text:`Customers wait, then leave. The ${t.dbNoun} looked guilty, but the cause was at the very start of the chain.`, leave:true },
+    ],
+    teach:{
+      q:`Why did the ${t.appNoun} get slow?`,
+      options:[
+        { t:`The ${t.dbNoun} broke, so everything slowed down.`, ok:false, why:`The ${t.dbNoun} was busy, not broken. Busy is the symptom. Ask what is sending it so much work.` },
+        { t:`An update changed the labels, so the ${t.cacheNoun} stopped helping and every ${t.thing} fell through to the ${t.dbNoun}.`, ok:true, why:'Yes. That is the whole chain: change → cache misses → overload → queue → customers leave.' },
+        { t:`Too many customers showed up at once.`, ok:false, why:`The number of customers was normal. The work per customer exploded because the ${t.cacheNoun} stopped answering.` },
+      ],
+    },
+  };
+}
+const SCENARIOS = Object.fromEntries(Object.entries(THEMES).map(([k, t]) => [k, makeScenario(t)]));
+
+// ---- Ada, the mentor. Each step is skipped if you have already done it. ----
+function mentorSteps(sc) {
+  const t = sc.theme;
+  return [
+    { target:'app',   done:(c) => c.near === 'app' || c.insp('app:metrics'),
+      say:`Hi, I'm Ada. Customers are leaving and nobody knows why. Watch the little crates: each is an order. It goes to the ${t.appNoun}, asks the ${t.cacheNoun}, and only walks to the ${t.dbNoun} if the ${t.cacheNoun} cannot help. Walk to the ${t.app} (WASD or arrows).`,
+      hint:`Walk up to the building where orders first arrive.` },
+    { target:'app',   done:(c) => c.insp('app:metrics'),
+      say:`Good. Press 1 to Measure. Numbers show us what is really happening. Start where customers touch the system.`,
+      hint:`Where do customers feel the problem? Measure it.` },
+    { target:'db',    done:(c) => c.insp('db:metrics'),
+      say:`Each ${t.thing} takes 14 seconds, not 1. That time is spent waiting on the ${t.dbNoun}. Go measure the ${t.db}.`,
+      hint:`Where is all the waiting happening?` },
+    { target:'cache', done:(c) => c.insp('cache:metrics'),
+      say:`The ${t.dbNoun} is at 98% load. It is tempting to blame it, but it only works when someone sends it work. Busy is often a symptom. Who should be absorbing most requests before they get there? The ${t.cacheNoun}. Measure it.`,
+      hint:`Something should be shielding the ${t.dbNoun}. Is it doing its job?` },
+    { target:'cache', done:(c) => c.insp('cache:logs'),
+      say:`The ${t.cacheNoun} answered 0 of 100 questions. It is not broken, it is being ignored. Press 2 to Listen in: logs are the diary of what it keeps seeing.`,
+      hint:`Why is it missing every time? Read its diary.` },
+    { target:'app',   done:(c) => c.insp('app:changes'),
+      say:`Look at those labels: each ends in a brand-new timestamp, so nothing can ever match. Something changed how labels are made. The best question in engineering is "what changed?" I've unlocked it. Ask it at the ${t.app}.`,
+      hint:`Something must have changed recently. Where would a change come from?` },
+    { target:'app',   done:(c) => c.G.hypothesis === 'app',
+      say:`Update #${t.rel} landed one minute before the trouble. Strong suspect! Before acting, state your hypothesis: your best guess, so you can test it. Press the "I think the problem is here" button at the ${t.app}.`,
+      hint:`Commit to a guess before you act.` },
+    { target:'app',   done:(c) => c.G.status !== 'active',
+      say:`Now choose a fix that removes the cause, not one that hides the symptom. Undoing the change that started it is called a rollback.`,
+      hint:`Remove the cause, not the symptom.` },
+  ];
+}
+
+</script>
+
+<!-- ============================ PURE ENGINE (same as the Debug Dungeon prototype) ============================ -->
+<script id="engine">
+// ---- The pure engine. No DOM. This is the part worth keeping. ----
+const Engine = (() => {
+  const inspectedAny = (s, id) => Object.keys(s.inspected).some(k => k.split(':')[0] === id);
+  const pace = s => Math.round(s.sc.baseImpact * s.rateMult);
+  const reject = (s, text) => ({ ...s, last:{ rejected:true, text } });
+  const addLog = (s, tone, text) => [...s.log, { step:s.step, tone, text }];
+
+  // Settle: check the loss conditions after any action that didn't win.
+  function settle(s) {
+    if (s.status !== 'active') return s;
+    if (s.impact >= 100) return { ...s, impact:100, status:'lost', outcome:{ kind:'lost', why:'impact' } };
+    if (s.focus <= 0)    return { ...s, status:'lost', outcome:{ kind:'lost', why:'focus' } };
+    return s;
+  }
+
+  function start(sc) {
+    return { sc, step:0, focus:sc.focus, impact:sc.startImpact, rateMult:1, status:'active', outcome:null,
+             hypothesis:null, inspected:{}, notebook:[], mitigations:[], fixesTried:[],
+             log:[{ step:0, tone:'info', text:'You are paged: ' + sc.symptom }], last:null };
+  }
+
+  function reduce(s, a) {
+    if (s.status !== 'active') return reject(s, 'The incident is over. Start a new one.');
+    const sc = s.sc;
+
+    if (a.type === 'inspect') {
+      const tool = TOOLS[a.tool], comp = sc.components[a.target], key = a.target + ':' + a.tool;
+      if (!tool || !comp) return reject(s, 'Unknown tool or component.');
+      if (s.inspected[key]) return reject(s, 'You already did that. The answer is in your notebook.');
+      if (s.focus < tool.cost) return reject(s, `Not enough Focus: that costs ${tool.cost}, you have ${s.focus}.`);
+      const dImp = pace(s), step = s.step + 1;
+      return settle({ ...s, step, focus:s.focus - tool.cost, impact:s.impact + dImp,
+        inspected:{ ...s.inspected, [key]:true },
+        notebook:[...s.notebook, { step, target:a.target, tool:a.tool, text:comp.clues[a.tool] }],
+        last:{ text:`${tool.label} on ${comp.name}.`, dFocus:-tool.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'hypothesize') {
+      const comp = sc.components[a.target];
+      if (!comp) return reject(s, 'Unknown component.');
+      return { ...s, hypothesis:a.target,
+        log:addLog(s, 'info', `Hypothesis: the problem is in ${comp.name}.`),
+        last:{ text:`You commit to a hypothesis: ${comp.name}. (Free, but you will be held to it.)`, dFocus:0, dImpact:0 } };
+    }
+
+    if (a.type === 'mitigate') {
+      const m = sc.mitigations.find(x => x.id === a.id);
+      if (!m) return reject(s, 'Unknown mitigation.');
+      if (s.mitigations.includes(m.id)) return reject(s, 'Already applied.');
+      if (s.focus < m.cost) return reject(s, `Not enough Focus: that costs ${m.cost}, you have ${s.focus}.`);
+      const next = { ...s, step:s.step + 1, focus:s.focus - m.cost, rateMult:s.rateMult * m.rateMult, mitigations:[...s.mitigations, m.id] };
+      const dImp = pace(next);
+      return settle({ ...next, impact:s.impact + dImp,
+        log:addLog(next, 'mit', `${m.label}: ${m.note}`),
+        last:{ text:`Mitigation applied: ${m.label}.`, dFocus:-m.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'fix') {
+      const f = sc.fixes.find(x => x.id === a.id);
+      if (!f) return reject(s, 'Unknown fix.');
+      const comp = sc.components[f.target];
+      if (!inspectedAny(s, f.target)) return reject(s, `You have not even looked at ${comp.name}. Do not change what you have not inspected.`);
+      if (s.hypothesis !== f.target) return reject(s, `State your hypothesis first. Say that you believe ${comp.name} is the problem before you touch production.`);
+      if (s.fixesTried.includes(f.id)) return reject(s, 'You already tried that.');
+      if (s.focus < f.cost) return reject(s, `Not enough Focus: that costs ${f.cost}, you have ${s.focus}.`);
+      const step = s.step + 1, focus = s.focus - f.cost;
+      if (f.kind === 'root' || f.kind === 'partial') {
+        return { ...s, step, focus, status:'won', outcome:{ kind:f.kind, fix:f },
+          log:addLog({ ...s, step }, f.kind === 'root' ? 'good' : 'warn', `${f.label}: ${f.outcome}`),
+          last:{ text:`Fix applied: ${f.label}.`, dFocus:-f.cost, dImpact:0 } };
+      }
+      const dImp = pace(s) + f.penalty;
+      return settle({ ...s, step, focus, impact:s.impact + dImp, hypothesis:null,
+        fixesTried:[...s.fixesTried, f.id],
+        log:addLog({ ...s, step }, 'bad', `${f.label}: ${f.outcome} Your hypothesis about ${comp.name} is disproven.`),
+        last:{ text:`Fix failed: ${f.label}. Hypothesis cleared.`, dFocus:-f.cost, dImpact:dImp } });
+    }
+    return reject(s, 'Unknown action.');
+  }
+
+  function debrief(s) {
+    const examined = [...new Set(Object.keys(s.inspected).map(k => k.split(':')[0]))];
+    const o = s.outcome || {};
+    let grade, blurb;
+    if (o.kind === 'root') {
+      grade = (s.impact < 60 && s.fixesTried.length === 0) ? 'Clean resolution' : 'Resolved, with scars';
+      blurb = 'You found and fixed the root cause.';
+    } else if (o.kind === 'partial') {
+      grade = 'Patched, not fixed';
+      blurb = 'The pages stopped, but the underlying bug is still there.';
+    } else if (o.why === 'impact') {
+      grade = 'Customers walked away'; blurb = 'Impact hit 100 before you found the cause.';
+    } else {
+      grade = 'Out of steam. Time to escalate'; blurb = 'You ran out of Focus before resolving the incident.';
+    }
+    return { grade, blurb, examined, wrongFixes:s.fixesTried.length, mitigations:s.mitigations.length };
+  }
+
+  return { start, reduce, debrief, inspectedAny };
+})();
+
+</script>
+
+<!-- ============================ THROWAWAY 2.5D SHELL ============================ -->
+<script id="page">
+// =============== world layout (presentation only) ===============
+const MAP_W = 14, MAP_H = 11;
+const BLD = {
+  app:   { x:4, y:4, h:58, color:'#3b82f6' },
+  cache: { x:9, y:1, h:36, color:'#10b981' },
+  db:    { x:9, y:7, h:50, color:'#f59e0b' },
+};
+const SPAWN = { x:3.5, y:8.5 };
+const QY = i => i % 2 ? 2.5 : 3.2;
+const THRESH = [28, 45, 60, 75, 90];            // Impact at which each named customer gives up
+// order routes (tile-centre coordinates)
+const R = {
+  gate:[[.5,4.5],[3.5,4.5]], thru:[[3.5,4.5],[6.5,4.5]],
+  toCache:[[6.5,4.5],[6.5,1.5],[8.5,1.5]], toDb:[[6.5,4.5],[6.5,7.5],[8.5,7.5]],
+};
+const rev = p => p.slice().reverse();
+const cat = (...ps) => ps.reduce((a, p) => a.concat(a.length && a[a.length - 1][0] === p[0][0] && a[a.length - 1][1] === p[0][1] ? p.slice(1) : p), []);
+const P_TO_SHELF = cat(R.gate, R.thru, R.toCache);
+const P_HOME_FROM_SHELF = cat(rev(R.toCache), rev(R.thru), rev(R.gate));
+const P_HOME_FROM_DB = cat(rev(R.toDb), rev(R.thru), rev(R.gate));
+const plen = p => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
+function pointAlong(p, d) {
+  d = Math.max(0, d);
+  for (let i = 1; i < p.length; i++) { const l = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); if (d <= l) { const f = d / (l || 1); return [p[i - 1][0] + (p[i][0] - p[i - 1][0]) * f, p[i - 1][1] + (p[i][1] - p[i - 1][1]) * f]; } d -= l; }
+  return p[p.length - 1];
+}
+function truncate(p, d) { const out = [p[0]]; for (let i = 1; i < p.length; i++) { const l = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); if (d >= l) { out.push(p[i]); d -= l; } else { out.push(pointAlong(p.slice(i - 1), d)); break; } } return out; }
+const DB_LEN = plen(R.toDb), SLOT = 0.45;
+
+// =============== helpers ===============
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let cw, ch, dpr, S = 1, OX = 0, OY = 0;
+const proj = (x, y, z = 0) => ({ x:(x - y) * 32, y:(x + y) * 16 - z });
+function resize() {
+  dpr = window.devicePixelRatio || 1; cw = innerWidth; ch = innerHeight; cv.width = cw * dpr; cv.height = ch * dpr;
+  const bw = (MAP_W + MAP_H) * 32, bh = (MAP_W + MAP_H) * 16 + 110;
+  S = Math.max(.4, Math.min(cw * .97 / bw, (ch - 100 - 150) / bh));
+  OX = cw / 2 - S * (MAP_W - MAP_H) * 16 + 40; OY = 96 + S * 110;
+}
+addEventListener('resize', resize);
+function shade(hex, f) { const n = parseInt(hex.slice(1), 16), c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; }
+function poly(pts, fill, stroke) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } }
+function box(x, y, w, d, h, color, windows = true, z0 = 0) {
+  const T = h + z0, t = [proj(x, y, T), proj(x + w, y, T), proj(x + w, y + d, T), proj(x, y + d, T)];
+  const rf = [proj(x + w, y, z0), proj(x + w, y + d, z0), proj(x + w, y + d, T), proj(x + w, y, T)];
+  const lf = [proj(x, y + d, z0), proj(x + w, y + d, z0), proj(x + w, y + d, T), proj(x, y + d, T)];
+  poly(lf, shade(color, .72), 'rgba(0,0,0,.25)'); poly(rf, shade(color, .52), 'rgba(0,0,0,.25)'); poly(t, shade(color, 1.08), 'rgba(255,255,255,.15)');
+  if (windows && h > 30) for (const [A, B, f] of [[lf[0], lf[1], .9], [rf[0], rf[1], .7]]) {
+    const rows = Math.floor(h / 18) - 1;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < 3; c++) {
+      const u0 = .12 + c * .3, u1 = u0 + .18, v0 = .14 + r * (.7 / Math.max(1, rows)), v1 = v0 + .09, Pp = (u, v) => ({ x:A.x + (B.x - A.x) * u, y:A.y + (B.y - A.y) * u - h * v });
+      poly([Pp(u0, v0), Pp(u1, v0), Pp(u1, v1), Pp(u0, v1)], `rgba(255,236,170,${.22 * f + ((r * 3 + c) % 3 === 0 ? .25 : 0)})`);
+    }
+  }
+}
+
+// =============== state ===============
+let G = null, SC = null, mode = 'guided', phase = 'menu', steps = [], bld = [], player, ada, cust = [], keys = new Set();
+let orders = [], whQ = [], whIncoming = 0, spawnT = 0, whT = 0, world = { broken:true, clerks:false }, flashes = [], parts = [];
+let version = 0, nearId = null, T = 0, toastTimer, toast2Timer, endTimer, replay = null, adaOverride = null, adaKey = '', savedCust = null;
+const known = new Set();                         // Codex entries unlocked this session
+
+// =============== simulation (what the player SEES; the engine decides what is TRUE) ===============
+const door = id => ({ app:[3.5, 4.5], cache:[8.5, 1.5], db:[8.5, 7.5] }[id]);
+function go(o, path, next) { o.path = path; o.pi = 1; o.next = next; o.state = 'move'; o.x = path[0][0]; o.y = path[0][1]; }
+function spawnOrder() { const o = { x:.5, y:4.5, color:'#60a5fa', speed:2.2 + Math.random() * .5, born:T, state:'move' }; go(o, P_TO_SHELF, 'lookup'); orders.push(o); }
+function simStep(dt) {
+  const hitP = world.broken ? 0 : .94, interval = world.broken ? .55 : .9, svc = world.clerks ? .42 : .9;
+  spawnT -= dt; if (spawnT <= 0 && orders.length < 70) { spawnT = interval; spawnOrder(); }
+  whT -= dt; if (whT <= 0 && whQ.length) { const o = whQ.shift(); o.color = '#4ade80'; go(o, P_HOME_FROM_DB, 'done'); o.x = 8.5; o.y = 7.5; whT = svc; }
+  if (!whQ.length) whT = Math.max(whT, 0);
+  orders.forEach(o => {
+    if (o.state === 'wait') { o.t -= dt; if (o.t <= 0) afterLookup(o, hitP); return; }
+    if (o.state === 'queued') { const i = whQ.indexOf(o); if (i < 0) return; const s = slotPos(i), k = Math.min(1, dt * 6); o.x += (s[0] - o.x) * k; o.y += (s[1] - o.y) * k; o.z = s[2]; return; }
+    if (o.state !== 'move') return;
+    let step = o.speed * dt;
+    while (step > 0 && o.pi < o.path.length) {
+      const tgt = o.path[o.pi], dx = tgt[0] - o.x, dy = tgt[1] - o.y, d = Math.hypot(dx, dy);
+      if (d <= step) { o.x = tgt[0]; o.y = tgt[1]; o.pi++; step -= d; } else { o.x += dx / d * step; o.y += dy / d * step; step = 0; }
+    }
+    if (o.pi >= o.path.length) arrive(o);
+  });
+  orders = orders.filter(o => o.state !== 'dead');
+  flashes.forEach(f => f.t += dt); flashes = flashes.filter(f => f.t < 1.1);
+}
+function slotPos(i) { const d = DB_LEN - i * SLOT, p = pointAlong(R.toDb, d), over = Math.max(0, i - Math.floor(DB_LEN / SLOT)); return [p[0], p[1], over * 5]; }
+function arrive(o) {
+  if (o.next === 'lookup') { o.state = 'wait'; o.t = .45; }
+  else if (o.next === 'toqueue') { whIncoming--; o.state = 'queued'; o.z = 0; whQ.push(o); }
+  else if (o.next === 'done') { o.state = 'dead'; if (!replay) flashes.push({ x:.9, y:4.1, t:0, ok:true, at:'gate' }); }
+}
+function afterLookup(o, hitP) {
+  const hit = Math.random() < hitP; flashes.push({ x:8.8, y:1.8, t:0, ok:hit, at:'cache' });
+  if (hit) { o.color = '#4ade80'; go(o, P_HOME_FROM_SHELF, 'done'); }
+  else {
+    if (whQ.length + whIncoming >= 24) { o.color = '#ef4444'; go(o, P_HOME_FROM_SHELF, 'done'); return; }   // timed out
+    o.color = '#fbbf24'; const k = whQ.length + whIncoming; whIncoming++;
+    go(o, cat(rev(R.toCache), truncate(R.toDb, Math.max(0, DB_LEN - k * SLOT))), 'toqueue');
+  }
+}
+function ff(sec) { for (let i = 0; i < sec * 30; i++) { T += 1 / 30; simStep(1 / 30); } }
+function resetSim(warm) { orders = []; whQ = []; whIncoming = 0; spawnT = 0; whT = 0; flashes = []; for (let i = 0; i < warm * 30; i++) { T += 1 / 30; simStep(1 / 30); } }
+
+// =============== game flow ===============
+function newGame(id, m) {
+  clearTimeout(endTimer); mode = m; SC = SCENARIOS[id]; G = Engine.start(SC); steps = mentorSteps(SC); version++; replay = null; adaOverride = null; adaKey = ''; savedCust = null;
+  bld = Object.entries(BLD).map(([cid, b]) => ({ id:cid, name:SC.components[cid].name, ...b, w:2, d:2 }));
+  player = { x:SPAWN.x, y:SPAWN.y, walk:0, face:1 }; ada = { x:SPAWN.x - 1.2, y:SPAWN.y + .8, walk:0 };
+  cust = SC.theme.customers.map((c, i) => ({ ...c, thr:THRESH[i], x:2.2 - i * .45, y:i % 2 ? 2.5 : 3.2, state:'wait', home:2.2 - i * .45 }));
+  world = { broken:true, clerks:false }; parts = []; nearId = null; phase = 'play'; T = 0; resetSim(26);
+  $('#overlay').classList.remove('show'); $('#drawer').classList.remove('open'); $('#card').style.display = 'none'; $('#prompt').style.display = '';
+  renderAll(); if (mode === 'guided') say(null);
+}
+function unlock(ids) { (ids || []).forEach(i => { if (!known.has(i)) { known.add(i); toast2(`📖 New in your Codex: ${CODEX[i].term}`); } }); }
+function toast(text, cls) { const t = $('#toast'); t.textContent = text; t.className = 'show ' + (cls || ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 4500); }
+function toast2(text) { const t = $('#toast2'); t.textContent = text; t.className = 'show'; clearTimeout(toast2Timer); toast2Timer = setTimeout(() => t.className = '', 3200); }
+function say(text, ms) { adaOverride = text ? { text, until:performance.now() + (ms || 7000) } : null; adaKey = ''; }
+
+function act(a) {
+  if (phase !== 'play') return;
+  const prev = G; G = Engine.reduce(G, a); version++; const l = G.last;
+  if (l.rejected) { toast('Not allowed: ' + l.text, 'rej'); say(l.text, 6000); }
+  else {
+    toast(l.text + (l.dFocus ? `  ·  Focus ${l.dFocus}` : '') + (l.dImpact ? `  ·  Customers' patience −${l.dImpact}` : ''));
+    if (a.type === 'inspect') unlock(CODEX_ON[a.target + ':' + a.tool]);
+    if (a.type === 'hypothesize') unlock(['hypothesis']);
+    if (a.type === 'fix') {
+      const f = SC.fixes.find(x => x.id === a.id); say(f.outcome, 10000);
+      if (G.status === 'won') { unlock(f.kind === 'root' ? ['rollback'] : []); world.broken = f.kind !== 'root'; world.clerks = f.kind === 'partial'; }
+    }
+  }
+  renderAll();
+  if (prev.status === 'active' && G.status === 'won') endTimer = setTimeout(startReplay, 1800);
+  if (prev.status === 'active' && G.status === 'lost') endTimer = setTimeout(showLost, 1500);
+}
+function spendHint() {
+  if (mode !== 'solo' || phase !== 'play' || G.status !== 'active') return;
+  if (G.focus < 1) return;
+  const st = steps.find(s => !s.done(mctx())); G = { ...G, focus:G.focus - 1, last:{ text:'Hint', dFocus:-1, dImpact:0 } }; version++;
+  say('Hint (−1 Focus): ' + (st ? st.hint : 'You are done.'), 9000); renderAll();
+  if (G.focus <= 0) { G = { ...G, status:'lost', outcome:{ kind:'lost', why:'focus' } }; endTimer = setTimeout(showLost, 1500); }
+}
+function mctx() { return { G, near:nearId, insp:k => !!G.inspected[k] }; }
+
+// ---- replay → teach-back → end ----
+function startReplay() {
+  phase = 'replay'; savedCust = cust.map(c => c.state); cust.forEach(c => { c.state = 'wait'; c.x = c.home; });
+  world.broken = false; world.clerks = false; resetSim(6); replay = { i:0, auto:0 }; applyReplayStep(); renderAll();
+}
+function applyReplayStep() {
+  const st = SC.replay[replay.i]; world.broken = st.broken; replay.auto = 0;
+  if (st.leave) cust.forEach((c, k) => setTimeout(() => { if (phase === 'replay') c.state = 'leaving'; }, k * 350));
+  if (replay.i === 2) ff(4); if (replay.i === 3) ff(16);
+  if (replay.i === 0) flashes.push({ x:4.9, y:4.9, t:-.2, ok:false, at:'app' });
+  renderAll();
+}
+function nextReplay() {
+  if (replay.i < SC.replay.length - 1) { replay.i++; applyReplayStep(); return; }
+  phase = 'teach'; replay = null; restoreAfterReplay(); renderAll();
+}
+function restoreAfterReplay() {
+  world.broken = G.outcome.kind !== 'root'; world.clerks = G.outcome.kind === 'partial'; resetSim(6);
+  cust.forEach((c, i) => { c.x = c.home; c.y = QY(i); c.state = savedCust[i] === 'wait' ? 'happy' : 'gone'; if (c.state === 'gone') c.x = -3; });
+}
+function showLost() {
+  const o = $('#overlay'); const d = Engine.debrief(G);
+  o.innerHTML = `<div class="modal" style="border-color:var(--bad)"><h2>${esc(d.grade)}</h2>
+    <p class="mute" style="margin-top:0">${esc(d.blurb)}</p>
+    <p>${mode === 'guided' ? 'Ada: "Incidents are hard. Let\'s rewind and try again. The first time through, everyone wanders. That\'s how we learn."' : 'Every incident you lose teaches you where your instincts need work.'}</p>
+    <div class="row"><button class="primary" data-start="${SC.id}|${mode}">Rewind and try again</button><button data-menu="1">Menu</button></div></div>`;
+  o.classList.add('show');
+}
+function showEnd() {
+  phase = 'end'; const d = Engine.debrief(G), saved = cust.filter(c => c.state === 'happy').length, o = $('#overlay'), t = SC.theme;
+  o.innerHTML = `<div class="modal"><h2>${esc(d.grade)}</h2>
+    <p class="mute" style="margin-top:0">${esc(d.blurb)} You kept <b>${saved} of ${cust.length}</b> customers and used ${G.step} actions. Codex: <b>${known.size} of ${Object.keys(CODEX).length}</b> terms.</p>
+    ${G.outcome.kind === 'partial' ? '<p style="color:var(--warn)"><b>Careful:</b> the pages stopped, but the real cause is still live. This is how incidents quietly come back.</p>' : ''}
+    <p><b>What was really going on:</b> ${esc(SC.rootSummary)}</p>
+    <b>What you learned:</b><ul>${SC.lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    <div class="row">
+      ${SC.id === 'empty_shelf' ? '<button class="primary" data-start="ticket_rush|solo">Next: same bug, new disguise (no Ada)</button><button data-start="empty_shelf|solo">Replay without Ada</button>' : '<button class="primary" data-start="empty_shelf|guided">Back to Lesson 1</button>'}
+      <button data-start="${SC.id}|${mode}">Play this again</button><button id="lookBtn">Look around the city</button></div></div>`;
+  o.classList.add('show');
+}
+function showMenu() {
+  const o = $('#overlay'); phase = 'menu';
+  o.innerHTML = `<div class="modal"><h1>Nexzonia <span class="tag">LESSON 1 · PROTOTYPE · throwaway</span></h1>
+    <p class="mute" style="margin-top:0">Something is broken in the city, and you're the one who has to find out why.</p>
+    <p><b>The question this prototype answers:</b> can a total beginner, in about ten minutes, <i>understand</i> a real incident and explain it back? Try it as one, or hand it to one.</p>
+    <ul><li>An <b>order simulation</b> runs live, so you can see the mechanism before reading a word.</li>
+    <li><b>Ada</b>, your mentor, guides the first run. She fades out in solo mode.</li>
+    <li>Words you learn go into your <b>Codex</b>. At the end, the game <b>rewinds</b> and shows the chain of cause and effect.</li></ul>
+    <button class="scn" data-start="empty_shelf|guided"><b>Start Lesson 1 with Ada</b><span class="mute">Recommended for first-timers. About 10 minutes.</span></button>
+    <button class="scn" data-start="empty_shelf|solo"><b>Lesson 1, solo (no Ada)</b><span class="mute">Hints cost Focus. All tools unlocked.</span></button>
+    <button class="scn" data-start="ticket_rush|solo"><b>Lesson 1b: the same bug in a new disguise</b><span class="mute">Do you recognise the pattern when it wears different clothes?</span></button>
+    <div class="mute small">Move: WASD / arrows · Act: click or number keys · Notebook &amp; Codex: Tab · Hint (solo): H</div></div>`;
+  o.classList.add('show');
+}
+$('#overlay').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.start) { const [id, m] = b.dataset.start.split('|'); newGame(id, m); }
+  else if (b.dataset.menu) showMenu(); else if (b.id === 'lookBtn') $('#overlay').classList.remove('show');
+});
+
+// =============== HUD ===============
+function adaStep() { return mode === 'guided' && phase === 'play' ? steps.find(s => !s.done(mctx())) : null; }
+function renderAll() { renderLeft(); renderRight(); renderDrawer(); renderPrompt(true); renderCard(); }
+function renderLeft() {
+  $('#lessonTitle').innerHTML = `${esc(SC.title.split(' · ')[0])} <span class="tag">${mode === 'guided' ? 'with Ada' : 'solo'}</span>`;
+  $('#symptom').innerHTML = `<b>${esc(SC.title.split(' · ')[1] || SC.title)}.</b> ${esc(SC.symptom)}`;
+  const last = G.notebook[G.notebook.length - 1];
+  $('#findingCard').innerHTML = last ? `<div class="src">Latest finding · ${esc(SC.components[last.target].name)} · ${esc(TOOLS[last.tool].label)}</div>${esc(shownText(last))}` : '<span class="mute">No findings yet. Walk up to a building and use a tool.</span>';
+  renderAda(true);
+}
+function renderAda(force) {
+  const el = $('#ada'), now = performance.now(); if (adaOverride && now > adaOverride.until) { adaOverride = null; adaKey = ''; }
+  const st = adaStep(), text = adaOverride ? adaOverride.text : st ? st.say : (mode === 'solo' ? 'Solo mode. No mentor. Press H for a hint (costs 1 Focus).' : phase === 'play' ? 'Go on, finish it!' : '');
+  const key = (adaOverride ? 'o' : '') + (st ? steps.indexOf(st) : -1) + '|' + text.length + '|' + mode;
+  if (!force && key === adaKey) return; adaKey = key;
+  el.style.display = phase === 'play' && text ? '' : 'none';
+  el.innerHTML = `<div class="av ${mode === 'solo' ? 'solo' : ''}">${mode === 'solo' ? '?' : 'A'}</div><div><b>${mode === 'solo' ? 'Solo' : 'Ada'}</b><div>${esc(text)}</div></div>`;
+  if (text) { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+}
+function shownText(n) {            // once you know a term, solo mode drops the parenthetical definition
+  const ids = CODEX_ON[n.target + ':' + n.tool] || [];
+  return mode !== 'guided' && ids.length && ids.every(i => known.has(i)) ? n.text.replace(/\s*\([A-Z][^()]*\)/g, '') : n.text;
+}
+function renderRight() {
+  const pat = Math.max(0, 100 - G.impact), cls = pat <= 25 ? 'crit' : pat <= 50 ? 'hot' : '';
+  $('#right').innerHTML = `
+    <div class="stat"><span>Customers' patience</span><b>${pat}%</b></div><div class="bar ${cls}"><i style="width:${pat}%"></i></div>
+    <div class="stat"><span>Focus <span class="mute small">(your effort budget)</span></span><b>${G.focus} / ${SC.focus}</b></div><div class="bar focus"><i style="width:${G.focus / SC.focus * 100}%"></i></div>
+    <div class="stat small"><span class="mute">Hypothesis</span><span>${G.hypothesis ? '★ ' + esc(SC.components[G.hypothesis].name) : 'none yet'}</span></div>
+    <div class="chips">${cust.map(c => `<span class="chip ${c.state === 'gone' || c.state === 'leaving' ? 'gone' : c.state === 'happy' ? 'happy' : ''}">${esc(c.name)}${c.state === 'happy' ? ' ♥' : ''}</span>`).join('')}</div>`;
+}
+function renderDrawer() {
+  $('#drawer').innerHTML = `<div class="row" style="justify-content:space-between"><b>Notebook &amp; Codex</b><button id="closeDrawer">Close <kbd>Tab</kbd></button></div>
+    <h3>Notebook</h3>${G.notebook.length ? G.notebook.map(n => `<div class="e"><div class="mute small">#${n.step} · ${esc(SC.components[n.target].name)} · ${esc(TOOLS[n.tool].label)}</div>${esc(shownText(n))}</div>`).join('') : '<div class="mute">Empty.</div>'}
+    <h3>Codex · ${known.size} of ${Object.keys(CODEX).length}</h3>${Object.entries(CODEX).map(([k, c]) => known.has(k) ? `<div class="e"><b>${esc(c.term)}</b><div class="mute">${esc(c.def)}</div></div>` : `<div class="e locked"><b>???</b></div>`).join('')}`;
+}
+let promptSig = '', curItems = [];
+function itemsFor(id) {
+  const items = Object.entries(TOOLS).map(([t, tl]) => ({ label:tl.label, sub:tl.sub, cost:tl.cost, done:!!G.inspected[id + ':' + t], locked:t === 'changes' && mode === 'guided' && !G.inspected['cache:logs'], a:{ type:'inspect', tool:t, target:id } }));
+  items.push({ label:G.hypothesis === id ? '★ My hypothesis is here' : 'I think the problem is here', sub:'state your guess before acting', on:G.hypothesis === id, a:{ type:'hypothesize', target:id } });
+  if (Engine.inspectedAny(G, id)) SC.fixes.filter(f => f.target === id).forEach(f => items.push({ label:'Fix: ' + f.label, cost:f.cost, fix:true, done:G.fixesTried.includes(f.id), a:{ type:'fix', id:f.id } }));
+  return items;
+}
+function renderPrompt(force) {
+  const sig = nearId + '|' + version + '|' + phase; if (!force && sig === promptSig) return; promptSig = sig;
+  const el = $('#prompt'); el.style.display = phase === 'play' ? '' : 'none'; if (phase !== 'play') return;
+  if (!nearId) { curItems = []; el.innerHTML = `<span class="mute">Walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys. Stand next to a building to examine it. Every action costs Focus <i>and</i> customer patience, so choose what to check wisely.</span>`; return; }
+  const b = bld.find(q => q.id === nearId); curItems = itemsFor(nearId);
+  el.innerHTML = `<h2>${esc(b.name)} <span class="mute small">${esc(SC.theme.blurb[nearId])}</span></h2>
+    <div class="items">${curItems.map((it, i) => `<button class="${it.on ? 'on' : ''} ${it.fix ? 'fix' : ''}" data-i="${i}" ${it.done || it.locked ? 'disabled' : ''}><kbd>${i + 1}</kbd>${it.done ? '✓ ' : ''}${esc(it.label)}${it.cost ? `<span class="cost">${it.cost} Focus</span>` : ''}${it.sub ? `<span class="sub">${it.locked ? 'Ada will unlock this soon' : esc(it.sub)}</span>` : ''}</button>`).join('')}</div>`;
+}
+function renderCard() {
+  const c = $('#card'); c.style.display = (phase === 'replay' || phase === 'teach') ? '' : 'none';
+  if (phase === 'replay') {
+    const st = SC.replay[replay.i], last = replay.i === SC.replay.length - 1;
+    c.innerHTML = `<span class="tag">⏪ Rewind: how it really happened · ${replay.i + 1} of ${SC.replay.length}</span><h2 style="margin-top:8px">${esc(st.title)}</h2><p style="margin:0 0 10px">${esc(st.text)}</p><button class="primary" id="nextBtn">${last ? 'Check what you learned ▸' : 'Next ▸'} <kbd style="margin:0 0 0 6px">Space</kbd></button>`;
+  } else if (phase === 'teach') {
+    const q = SC.teach;
+    c.innerHTML = `<span class="tag">🧠 Teach-back</span><h2 style="margin-top:8px">${esc(q.q)}</h2><div class="items" style="flex-direction:column;align-items:stretch">${q.options.map((o, i) => `<button data-opt="${i}">${esc(o.t)}</button>`).join('')}</div><div id="teachMsg" style="margin-top:8px"></div>`;
+  }
+}
+$('#card').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'nextBtn') nextReplay();
+  else if (b.dataset.opt !== undefined) {
+    const o = SC.teach.options[+b.dataset.opt], m = $('#teachMsg');
+    if (o.ok) { unlock(['symptom']); m.innerHTML = `<span style="color:var(--good)"><b>Correct.</b></span> ${esc(o.why)} <div style="margin-top:8px"><button class="primary" id="doneBtn">Finish lesson ▸</button></div>`; }
+    else m.innerHTML = `<span style="color:var(--warn)"><b>Not quite.</b></span> ${esc(o.why)}`;
+  } else if (b.id === 'doneBtn') { $('#card').style.display = 'none'; showEnd(); }
+});
+$('#prompt').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !b.disabled) act(curItems[+b.dataset.i].a); });
+function toggleDrawer(v) { $('#drawer').classList.toggle('open', v); }
+$('#cdxBtn').onclick = () => toggleDrawer();
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'closeDrawer') toggleDrawer(false); });
+
+addEventListener('keydown', e => {
+  if ($('#overlay').classList.contains('show')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'tab') { e.preventDefault(); toggleDrawer(); return; }
+  if (phase === 'replay' && (k === ' ' || k === 'enter')) { e.preventDefault(); nextReplay(); return; }
+  if (k === 'h') { spendHint(); return; }
+  if (/^[1-9]$/.test(k) && phase === 'play') { const it = curItems[+k - 1]; if (it && !it.done && !it.locked) act(it.a); return; }
+  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListener('blur', () => keys.clear());
+
+// =============== update ===============
+const rectDist = (px, py, b) => Math.hypot(px - Math.max(b.x, Math.min(px, b.x + b.w)), py - Math.max(b.y, Math.min(py, b.y + b.d)));
+function blocked(x, y) { const r = .28; return x < r || y < r || x > MAP_W - r || y > MAP_H - r || bld.some(b => x > b.x - r && x < b.x + b.w + r && y > b.y - r && y < b.y + b.d + r); }
+function update(dt) {
+  T += dt;
+  if (phase === 'play' || phase === 'replay' || phase === 'teach') {
+    const sx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), sy = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
+    if (sx || sy) { let gx = sx + sy, gy = sy - sx; const n = Math.hypot(gx, gy); gx /= n; gy /= n; const v = 3.6 * dt; if (!blocked(player.x + gx * v, player.y)) player.x += gx * v; if (!blocked(player.x, player.y + gy * v)) player.y += gy * v; player.walk += dt; if (sx) player.face = sx; }
+    let best = null, bd = 1.05; bld.forEach(b => { const d = rectDist(player.x, player.y, b); if (d < bd) { bd = d; best = b.id; } });
+    if (best !== nearId) { nearId = best; renderPrompt(true); renderAda(false); }
+    // Ada tags along
+    const dx = player.x - ada.x, dy = player.y - ada.y, d = Math.hypot(dx, dy); if (d > 1.6) { const v = Math.min(d - 1.4, 3.2 * dt); ada.x += dx / d * v; ada.y += dy / d * v; ada.walk += dt; }
+  }
+  simStep(dt);
+  // customers
+  cust.forEach(c => {
+    if (phase === 'play' && c.state === 'wait' && G.impact >= c.thr) { c.state = 'leaving'; toast(`${c.name} gave up and left. ${c.story}`, 'bad'); renderRight(); }
+    if (c.state === 'leaving') { c.x -= 1.5 * dt; if (c.x < -3) { c.state = 'gone'; renderRight(); } }
+    if (c.state === 'happy') { if (c.x < c.home + .01) c.x = Math.max(c.x, c.home); }
+  });
+  if (phase === 'teach' || phase === 'end') cust.forEach(c => { if (c.state === 'happy' && Math.random() < 2 * dt) parts.push({ x:c.x, y:c.y, z:30, vz:30, life:0, ttl:1.2, k:'heart' }); });
+  parts.forEach(p => { p.life += dt; p.z += p.vz * dt; }); parts = parts.filter(p => p.life < p.ttl);
+  if (replay) { replay.auto += dt; if (replay.auto > 9) nextReplay(); }
+  if (adaOverride && performance.now() > adaOverride.until) renderAda(false);
+  const k = (adaStep() ? steps.indexOf(adaStep()) : -1) + '|' + (adaOverride ? 1 : 0); if (k !== update.k) { update.k = k; renderAda(true); renderPrompt(true); }
+  renderPrompt(false);
+}
+
+// =============== draw ===============
+function person(x, y, color, label, face, walk, extra) {
+  const p = proj(x, y), bob = Math.abs(Math.sin(walk * 10)) * 2;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 8, 4, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(p.x - 6, p.y - 21 - bob, 12, 19, 5); ctx.fill();
+  ctx.fillStyle = '#f2d3b3'; ctx.beginPath(); ctx.arc(p.x, p.y - 26 - bob, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b2147'; ctx.beginPath(); ctx.arc(p.x + 2 * face, p.y - 27 - bob, 1.3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e8eaf6'; ctx.font = '600 9px system-ui'; ctx.textAlign = 'center'; ctx.fillText(label, p.x, p.y - 36 - bob);
+  if (extra) { ctx.font = '15px system-ui'; ctx.fillText(extra, p.x, p.y - 48 - bob); }
+}
+function revealCache() { return phase === 'replay' || !!G.inspected['cache:metrics'] || !!G.inspected['cache:logs']; }
+function revealDb() { return phase === 'replay' || !!G.inspected['db:metrics']; }
+function draw() {
+  const g = ctx.createLinearGradient(0, 0, 0, ch); g.addColorStop(0, '#0b0f24'); g.addColorStop(1, '#17204a');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+  const road = new Set(); const addRoad = p => { for (let i = 1; i < p.length; i++) { const a = p[i - 1], b = p[i], n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))); for (let k = 0; k <= n; k++) road.add(Math.floor(a[0] + (b[0] - a[0]) * k / (n || 1)) + ',' + Math.floor(a[1] + (b[1] - a[1]) * k / (n || 1))); } };
+  [R.gate, R.toCache, R.toDb].forEach(addRoad);
+  const near = nearId ? bld.find(b => b.id === nearId) : null, tgt = adaStep() && bld.find(b => b.id === adaStep().target);
+  for (let s = 0; s < MAP_W + MAP_H - 1; s++) for (let x = 0; x < MAP_W; x++) {
+    const y = s - x; if (y < 0 || y >= MAP_H) continue;
+    const isRoad = road.has(x + ',' + y), glow = near && x >= near.x - 1 && x <= near.x + near.w && y >= near.y - 1 && y <= near.y + near.d;
+    const pulse = tgt && x >= tgt.x - 1 && x <= tgt.x + tgt.w && y >= tgt.y - 1 && y <= tgt.y + tgt.d;
+    poly([proj(x, y), proj(x + 1, y), proj(x + 1, y + 1), proj(x, y + 1)], isRoad ? '#566191' : pulse ? `rgba(255,184,107,${.18 + .12 * Math.sin(T * 4)})` : glow ? '#33407a' : ((x + y) % 2 ? '#1c2748' : '#1f2b50'), isRoad ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.03)');
+  }
+  const D = [];
+  bld.forEach(b => D.push({ k:b.x + 1 + b.y + 1, f:() => drawBuilding(b) }));
+  D.push({ k:.5 + .2 + 4.5 - 1.2, f:drawGate });
+  orders.forEach(o => { if (bld.some(b => o.x > b.x && o.x < b.x + b.w && o.y > b.y && o.y < b.y + b.d)) return; D.push({ k:o.x + o.y, f:() => box(o.x - .13, o.y - .13, .26, .26, 7, o.color, false, o.z || 0) }); });
+  cust.forEach(c => { if (c.state === 'gone') return; D.push({ k:c.x + c.y, f:() => { const m = c.state === 'happy' ? '😄' : G.impact >= c.thr - 8 ? '😠' : G.impact >= c.thr - 22 ? '😐' : '🙂'; person(c.x, c.y, '#c084fc', '', 1, c.state === 'leaving' ? T * .4 : 0, m); } }); });
+  D.push({ k:ada.x + ada.y, f:() => person(ada.x, ada.y, '#ffb86b', mode === 'guided' ? 'Ada' : '', 1, ada.walk, '') });
+  D.push({ k:player.x + player.y, f:() => person(player.x, player.y, '#8b9bff', 'you', player.face, player.walk) });
+  if (mode === 'solo') D.splice(D.findIndex(d => d.k === ada.x + ada.y), 1);
+  D.sort((a, b) => a.k - b.k).forEach(d => d.f());
+  // flashes (shelf hit/miss, gate happy)
+  flashes.forEach(f => {
+    if (f.t < 0) return; if (f.at === 'cache' && !revealCache()) return; if (f.at === 'gate' && f.t > .6) return;
+    const q = proj(f.x, f.y, 40 + f.t * 26), a = 1 - f.t / 1.1; ctx.globalAlpha = Math.max(0, a); ctx.font = '700 15px system-ui'; ctx.textAlign = 'center';
+    ctx.fillStyle = f.at === 'app' ? '#8b9bff' : f.ok ? '#5fd38d' : '#ff6b6b'; ctx.fillText(f.at === 'app' ? '★ update!' : f.ok ? '✓' : '?', q.x, q.y); ctx.globalAlpha = 1;
+  });
+  parts.forEach(p => { const q = proj(p.x, p.y, p.z), a = 1 - p.life / p.ttl; ctx.globalAlpha = a; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('♥', q.x, q.y); ctx.globalAlpha = 1; });
+  bld.forEach(drawLabel);
+  drawBeacon(tgt);
+  if (replay) drawReplayRing();
+  // vignette
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const a = phase === 'play' ? Math.max(0, (G.impact - 40) / 60) * .4 : 0;
+  if (a > 0) { const v = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * .35, cw / 2, ch / 2, Math.max(cw, ch) * .75); v.addColorStop(0, 'rgba(255,40,40,0)'); v.addColorStop(1, `rgba(255,40,40,${a})`); ctx.fillStyle = v; ctx.fillRect(0, 0, cw, ch); }
+}
+function drawGate() {
+  box(.1, 3.7, .35, .35, 38, '#64748b', false); box(.1, 5.0, .35, .35, 38, '#64748b', false); box(.1, 3.7, .35, 1.65, 8, '#94a3b8', false, 38);
+  const c = proj(.3, 4.5, 56); ctx.fillStyle = '#e8eaf6'; ctx.font = '600 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Town Gate', c.x - 4, c.y);
+}
+function drawBuilding(b) {
+  box(b.x, b.y, b.w, b.d, b.h, b.color);
+  poly([proj(b.x + .3, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + 1.7, b.h + 4), proj(b.x + .3, b.y + 1.7, b.h + 4)], shade(b.color, 1.25));
+  if (b.id === 'cache') { const s = proj(b.x + 1, b.y + 1, b.h + 6); for (let i = 0; i < 4; i++) { ctx.fillStyle = world.broken ? 'rgba(0,0,0,.25)' : '#fde68a'; ctx.fillRect(s.x - 18 + i * 10, s.y - 3, 7, 5); } }   // empty vs stocked shelf slots
+}
+function drawLabel(b) {
+  const c = proj(b.x + 1, b.y + 1, b.h + 24), isNear = b.id === nearId;
+  ctx.font = `${isNear ? 700 : 600} 13px system-ui,sans-serif`; ctx.textAlign = 'center';
+  const w = ctx.measureText(b.name).width + 14;
+  ctx.fillStyle = isNear ? 'rgba(139,155,255,.95)' : 'rgba(10,13,30,.82)'; ctx.beginPath(); ctx.roundRect(c.x - w / 2, c.y - 13, w, 20, 6); ctx.fill();
+  ctx.fillStyle = isNear ? '#0b0f24' : '#e8eaf6'; ctx.fillText(b.name, c.x, c.y + 1);
+  Object.keys(TOOLS).forEach((t, i) => { ctx.fillStyle = G.inspected[b.id + ':' + t] ? '#8b9bff' : 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.arc(c.x - 8 + i * 8, c.y + 13, 2.6, 0, 7); ctx.fill(); });
+  if (G.hypothesis === b.id && phase === 'play') { ctx.fillStyle = '#f5b84b'; ctx.font = '700 20px system-ui'; ctx.fillText('★', c.x, c.y - 18 + Math.sin(T * 4) * 3); }
+  if (b.id === 'db' && revealDb()) {                                  // load gauge + queue count, once you have measured it
+    const q = whQ.length, f = Math.min(1, q / 14), gx = c.x - 30, gy = c.y - 32;
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(gx, gy, 60, 7); ctx.fillStyle = f > .7 ? '#ff6b6b' : f > .35 ? '#f5b84b' : '#5fd38d'; ctx.fillRect(gx, gy, 60 * f, 7);
+    ctx.fillStyle = '#e8eaf6'; ctx.font = '600 10px system-ui'; ctx.fillText(`line: ${q} waiting`, c.x, gy - 3);
+  }
+}
+function drawBeacon(tgt) {
+  if (!tgt || phase !== 'play') return; const c = proj(tgt.x + 1, tgt.y + 1, tgt.h + 62 + Math.abs(Math.sin(T * 3)) * 8);
+  ctx.fillStyle = '#ffb86b'; ctx.beginPath(); ctx.moveTo(c.x, c.y + 12); ctx.lineTo(c.x - 8, c.y); ctx.lineTo(c.x + 8, c.y); ctx.closePath(); ctx.fill();
+}
+function drawReplayRing() {
+  const st = SC.replay[replay.i], b = st.focus === 'gate' ? { x:.2, y:3.5, w:1.5, d:2.2 } : bld.find(q => q.id === st.focus); if (!b) return;
+  const p = [proj(b.x - .4, b.y - .4), proj(b.x + b.w + .4, b.y - .4), proj(b.x + b.w + .4, b.y + b.d + .4), proj(b.x - .4, b.y + b.d + .4)];
+  ctx.lineWidth = 3; poly(p, `rgba(255,184,107,${.12 + .1 * Math.sin(T * 5)})`, `rgba(255,184,107,${.7 + .3 * Math.sin(T * 5)})`);
+}
+
+let last = performance.now();
+function frame(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+resize(); newGame('empty_shelf', 'guided'); showMenu(); requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
