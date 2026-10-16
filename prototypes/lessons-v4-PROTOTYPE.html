@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f24">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Nexzonia · Debug Lessons</title>
+
+<style>
+  :root { --ink:#e8eaf6; --mute:#9aa3c7; --panel:rgba(14,18,38,.9); --line:rgba(140,155,255,.26); --accent:#8b9bff; --ada:#ffb86b; --bad:#ff6b6b; --good:#5fd38d; --warn:#f5b84b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0b0f24; color:var(--ink); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; overscroll-behavior:none; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  canvas.hover { cursor:pointer; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 12px; backdrop-filter:blur(6px); }
+  .tag { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(139,155,255,.18); color:var(--accent); font-weight:600; }
+  .mute { color:var(--mute); } .small { font-size:12px; }
+  button { font:inherit; font-size:14px; color:var(--ink); background:rgba(255,255,255,.08); border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; text-align:left; touch-action:manipulation; }
+  button:hover:not(:disabled) { border-color:var(--accent); background:rgba(139,155,255,.16); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#0b0f24; border-color:var(--accent); font-weight:650; }
+  button.primary:hover:not(:disabled) { background:var(--accent); color:#0b0f24; filter:brightness(1.12); }
+  kbd { display:inline-block; min-width:18px; text-align:center; font:600 11px system-ui; padding:1px 5px; margin-right:6px; border-radius:5px; background:rgba(255,255,255,.14); }
+  .coarse kbd { display:none; }
+
+  /* top bar: mission + patience + notebook */
+  #topbar { position:fixed; top:8px; left:8px; right:8px; display:flex; gap:10px; align-items:center; padding:8px 12px; z-index:3; }
+  #mission { display:flex; gap:14px; align-items:center; flex:1; min-width:0; }
+  .m { display:flex; gap:6px; align-items:center; color:var(--mute); white-space:nowrap; font-size:13px; }
+  .m .box { width:18px; height:18px; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; flex:none; }
+  .m.now { color:var(--ink); font-weight:650; } .m.now .box { border-color:var(--ada); }
+  .m.ok { color:var(--ink); } .m.ok .box { background:var(--good); border-color:var(--good); color:#06210f; }
+  #pat { display:flex; align-items:center; gap:8px; flex:none; }
+  #pat .bar { width:110px; height:8px; background:rgba(255,255,255,.12); border-radius:99px; overflow:hidden; } #pat .bar i { display:block; height:100%; background:var(--good); transition:width .3s,background .3s; }
+  #pat .bar.hot i { background:var(--warn); } #pat .bar.crit i { background:var(--bad); }
+  #faces { font-size:16px; letter-spacing:1px; white-space:nowrap; }
+  #cdxBtn { padding:6px 10px; }
+
+  /* the single guidance bubble */
+  #bubble { position:fixed; top:64px; left:8px; width:min(360px,44vw); z-index:3; border-color:rgba(255,184,107,.55); }
+  #bubble.shake { animation:shake .6s ease 2; }
+  @keyframes shake { 0%,100% { transform:none; } 25% { transform:translateX(-4px); } 75% { transform:translateX(4px); } }
+  #bubble .clue { padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
+  #bubble .clue .src { font-size:12px; color:var(--mute); }
+  #bubble .who { display:flex; gap:10px; }
+  .av { flex:none; width:30px; height:30px; border-radius:50%; background:var(--ada); color:#2a1a05; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .av.solo { background:#3a4162; color:var(--mute); }
+  #bubble b.n { color:var(--ada); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  #bubble.pulse { animation:pulse 1.2s ease-out 1; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(255,184,107,.7); } 100% { box-shadow:0 0 0 14px rgba(255,184,107,0); } }
+
+  /* actions */
+  #prompt, #card { bottom:10px; left:50%; transform:translateX(-50%); width:min(780px,calc(100vw - 16px)); z-index:3; }
+  #prompt h2, #card h2 { margin:0 0 4px; font-size:15px; }
+  .bigrow { display:flex; gap:10px; margin-top:8px; }
+  .big { flex:1 1 0; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 8px; text-align:center; font-size:15px; min-height:84px; }
+  .big .ic { font-size:26px; } .big .sub { font-size:12px; }
+  .opt { display:block; width:100%; margin:6px 0; padding:12px 14px; font-size:15px; min-height:48px; }
+  #fabs { position:fixed; right:10px; bottom:132px; display:flex; flex-direction:column; align-items:flex-end; gap:8px; z-index:4; }
+  #accuseBtn { padding:12px 16px; font-size:15px; } #accuseBtn.pulse { animation:pulse 1.2s ease-out infinite; }
+
+  #toast { position:fixed; top:112px; left:50%; transform:translateX(-50%); max-width:min(560px,92vw); padding:8px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); opacity:0; transition:opacity .2s; pointer-events:none; text-align:center; z-index:5; }
+  #toast.show { opacity:1; } #toast.rej { border-color:var(--bad); color:var(--bad); } #toast.bad { border-color:var(--bad); }
+  #wordPop { position:fixed; left:50%; top:112px; transform:translateX(-50%); max-width:min(520px,92vw); padding:10px 14px; border-radius:12px; background:var(--panel); border:1px solid var(--ada); opacity:0; transition:opacity .25s; pointer-events:none; z-index:5; }
+  #wordPop.show { opacity:1; }
+  #rotate { position:fixed; left:8px; right:8px; top:120px; z-index:6; display:none; text-align:center; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(400px,94vw); background:rgba(10,13,30,.98); border-left:1px solid var(--line); padding:14px; overflow:auto; transform:translateX(100%); transition:transform .2s; z-index:8; }
+  #drawer.open { transform:none; } #drawer h3 { margin:14px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); }
+  #drawer .e { padding:8px 0; border-bottom:1px solid var(--line); } #drawer .locked { opacity:.35; }
+  #overlay { position:fixed; inset:0; display:none; align-items:flex-start; justify-content:center; background:rgba(6,8,20,.86); z-index:10; padding:16px; overflow:auto; }
+  #overlay.show { display:flex; } .modal { width:min(700px,100%); margin:auto; background:#10152e; border:1px solid var(--line); border-radius:16px; padding:20px 22px; }
+  .modal h1 { margin:0 0 4px; font-size:24px; } .modal h2 { margin:0 0 6px; font-size:22px; } .modal ul { padding-left:20px; margin:6px 0 14px; }
+  .scn { display:block; width:100%; margin:8px 0; padding:14px; min-height:56px; } .scn b { display:block; font-size:16px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; } textarea { width:100%; height:120px; background:#0b0f24; color:var(--ink); border:1px solid var(--line); border-radius:8px; font:11px/1.3 monospace; }
+  table { border-collapse:collapse; width:100%; font-size:12px; } td, th { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; }
+
+  /* compact: phones and small landscape screens */
+  .compact { font-size:13px; }
+  .compact #topbar { top:4px; left:4px; right:4px; padding:5px 8px; gap:8px; }
+  .compact .m { font-size:12px; } .compact .m:not(.now) .lbl { display:none; } .compact .m .box { width:16px; height:16px; }
+  .compact #pat .mute { display:none; } .compact #pat .bar { width:56px; } .compact #faces { font-size:13px; letter-spacing:0; }
+  .compact #bubble { top:48px; left:4px; width:min(250px,40vw); padding:7px 9px; font-size:12px; }
+  .compact #bubble .av { width:24px; height:24px; font-size:12px; } .compact #bubble .clue .src { display:none; }
+  .compact #prompt, .compact #card { bottom:4px; width:calc(100vw - 8px); padding:6px 8px; }
+  .compact #prompt h2 { display:none; } .compact .bigrow { margin-top:0; gap:6px; } .compact .big { min-height:60px; padding:6px 4px; font-size:13px; } .compact .big .ic { font-size:20px; } .compact .big .sub { display:none; }
+  .compact #fabs { bottom:78px; right:6px; } .compact #card { max-height:60vh; overflow:auto; }
+  .compact #toast { top:48px; font-size:12px; left:auto; right:6px; transform:none; max-width:46vw; }
+  .compact #wordPop { top:48px; right:4px; left:auto; bottom:auto; transform:none; width:min(240px,34vw); font-size:11px; padding:6px 8px; }
+  .compact .opt { padding:9px 10px; font-size:13px; min-height:42px; margin:4px 0; }
+  .portrait #bubble { width:calc(100vw - 8px); top:48px; } .portrait #toast { top:150px; left:50%; right:auto; transform:translateX(-50%); max-width:92vw; } .portrait #wordPop { left:4px; right:auto; top:auto; width:calc(100vw - 8px); bottom:96px; }
+  /* visual evidence */
+  .vis { margin-top:8px; }
+  .vb { display:flex; align-items:center; gap:8px; margin:3px 0; font-size:12px; } .vl { width:88px; color:var(--mute); flex:none; }
+  .vt { flex:1; height:10px; background:rgba(255,255,255,.1); border-radius:99px; overflow:hidden; } .vt i { display:block; height:100%; border-radius:99px; } .vt i.good { background:var(--good); } .vt i.bad { background:var(--bad); } .vb b { width:64px; text-align:right; flex:none; }
+  .vtags { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .vh { font-size:11px; color:var(--mute); margin-bottom:3px; }
+  .tg { display:block; font:600 12px/1.2 ui-monospace,monospace; padding:3px 6px; border-radius:6px; margin:3px 0; } .tg.bad { background:rgba(255,107,107,.16); color:#ffb3b3; } .tg.good { background:rgba(95,211,141,.16); color:#a6f0c0; }
+  .vg { width:100%; height:auto; display:block; background:rgba(255,255,255,.04); border-radius:8px; } .vn { font-size:12px; color:var(--mute); margin-top:4px; } .vlines { font:12px/1.5 ui-monospace,monospace; color:#c9d0f5; background:rgba(255,255,255,.05); border-radius:8px; padding:6px 8px; }
+  #bubble { max-height:calc(100vh - 190px); overflow:auto; }
+  /* evidence board */
+  #card { max-height:70vh; overflow:auto; } .board { max-height:30vh; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:4px 8px; }
+  .pin { padding:6px 0; border-bottom:1px solid var(--line); } .pin:last-child { border:0; } .pt { font-size:13px; margin-bottom:4px; }
+  .pb { display:flex; gap:6px; flex-wrap:wrap; } .pb button { padding:5px 9px; font-size:12px; min-height:34px; } .pb button.on { background:var(--accent); color:#0b0f24; border-color:var(--accent); font-weight:650; }
+  .lesson { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; } .lesson > div:first-child { flex:1 1 260px; }
+  .bigrow { flex-wrap:wrap; } .big { min-width:84px; }
+  .compact .vb { font-size:11px; } .compact .vl { width:64px; } .compact #bubble .vis { margin-top:4px; } .compact .vtags { gap:6px; } .compact .tg { font-size:10px; padding:2px 4px; } .compact .vn { display:none; }
+  .accgrid { display:grid; grid-template-columns:1.25fr 1fr; gap:14px; align-items:start; } .portrait .accgrid { grid-template-columns:1fr; }
+  .compact #card { max-height:70vh; } .compact .board { max-height:42vh; } .compact .big { min-width:60px; } .compact .opsub { display:none; } .portrait .board { max-height:26vh; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="topbar" class="panel"><div id="mission"></div><div id="pat"></div><button id="cdxBtn"></button></div>
+<div id="bubble" class="panel"></div>
+<div id="toast"></div><div id="wordPop"></div>
+<div id="rotate" class="panel small">↻ Turn your phone sideways for a bigger view. <button id="rotateX" style="padding:3px 8px;margin-left:6px">OK</button></div>
+<div id="prompt" class="panel"></div>
+<div id="card" class="panel" style="display:none"></div>
+<div id="fabs"><button id="hintBtn">❓ Hint</button><button id="accuseBtn" class="primary">💡 I found the cause</button></div>
+<div id="drawer"></div>
+<div id="overlay"></div>
+
+<script id="data">
+// ---- Tools. A lesson lists which of these it uses; new tools unlock as you learn. ----
+const TOOLS = {
+  metrics: { label:'Check numbers',  icon:'👀', sub:'How is it doing?',            cost:1 },
+  logs:    { label:'Read the diary', icon:'📖', sub:'What has it been doing?',     cost:1 },
+  changes: { label:'What changed?',  icon:'❓', sub:'Did anything change lately?', cost:1 },
+  trend:   { label:'Graph it',       icon:'📈', sub:'How did it change over time?', cost:1 },
+};
+const ROLE_LABEL = { cause:'the real cause', symptom:'where the effect shows up', decoy:'a loud decoy', innocent:'an innocent bystander' };
+
+// ---- Words you pick up. Short, with a picture in your head. ----
+const CODEX = {
+  logs:       { term:'Logs',              pic:'📖', def:'The diary a program keeps about what it did. Engineers read it to find out what happened.' },
+  cache:      { term:'Cache',             pic:'🧊', def:'A fast spot that keeps popular answers handy, like the fridge by the counter. It saves a long walk.' },
+  symptom:    { term:'Symptom vs. cause', pic:'🔥', def:'The busy storeroom is a symptom, the thing you can see. The cause is what made it busy. Fix the cause.' },
+  deploy:     { term:'Update (deploy)',   pic:'🚀', def:'Putting new code live. Lots of problems start right after one, so always ask "what changed?"' },
+  hypothesis: { term:'Hypothesis',        pic:'💡', def:'A guess you state before you act, so you can check if you were right.' },
+  rollback:   { term:'Rollback',          pic:'⏪', def:'Undoing an update by going back to the old version. Often the fastest safe fix.' },
+  ruleout:    { term:'Ruling out',        pic:'✂️', def:'Checking suspects that turn out fine, so you can stop worrying about them. Not wasted effort: it narrows the search.' },
+  trend:      { term:'Trend',             pic:'📈', def:'A graph shows how something changes over time. One number is a snapshot. A graph tells the story.' },
+  leak:       { term:'Memory leak',       pic:'🪣', def:'A program keeps saving things and never cleans up, so it slowly clogs and slows down. On a graph it looks like a sawtooth.' },
+  mitigation: { term:'Mitigation',        pic:'🩹', def:'A quick move that eases the pain without fixing the cause, like restarting. It buys time. It is not the fix.' },
+};
+
+const THEMES = {
+  canteen: {
+    id:'canteen', place:'school tuckshop', app:'Counter', cache:'Fridge', db:'Storeroom',
+    appNoun:'counter', cacheNoun:'fridge', dbNoun:'storeroom', thing:'order', item:'snack', have:['roti', 'samosa', 'juice'],
+    welcome:'Welcome to the school tuckshop. Students order roti, samosas and juice at the counter.',
+    sub:{ app:'takes the orders', cache:'popular snacks, super quick', db:'has everything, but far away' },
+    blurb:{ app:'Students order here.', cache:'Keeps the popular snacks close.', db:'Holds everything, but it\'s a long walk.' },
+    customers:[
+      { name:'Mere',  story:'Her lunch break ran out.' }, { name:'Jone',  story:'He had rugby practice.' },
+      { name:'Seini', story:'She had a test next period.' }, { name:'Anil',  story:'He skipped breakfast.' }, { name:'Priya', story:'She was starving.' } ],
+  },
+  tuckshop2: {
+    id:'tuckshop2', place:'school tuckshop', app:'Counter', cache:'Fridge', db:'Storeroom',
+    appNoun:'counter', cacheNoun:'fridge', dbNoun:'storeroom', thing:'order', item:'snack', have:['roti', 'samosa', 'juice'],
+    welcome:'It\'s a new day at the tuckshop. In the morning, the counter is fast.',
+    sub:{ app:'takes the orders', cache:'popular snacks, super quick', db:'has everything, but far away' },
+    blurb:{ app:'Students order here.', cache:'Keeps the popular snacks close.', db:'Holds everything, but it\'s a long walk.' },
+    customers:[
+      { name:'Ana',    story:'She had netball training.' }, { name:'Vikash', story:'His bus was leaving.' },
+      { name:'Losana', story:'She needed lunch before class.' }, { name:'Tomasi', story:'He was meeting his cousins.' }, { name:'Salote', story:'It was her birthday treat.' } ],
+  },
+  ticket_rush: {
+    id:'ticket_rush', place:'ticket site', app:'Box Office', cache:'Seat Board', db:'Archive',
+    appNoun:'box office', cacheNoun:'seat board', dbNoun:'archive', thing:'ticket request', item:'seat', have:['seat-A12', 'seat-A13', 'seat-C07'],
+    welcome:'Welcome to the ticket site. The box office takes requests for Fiji Sevens seats.',
+    sub:{ app:'takes the requests', cache:'recent seats, super quick', db:'every seat ever, far away' },
+    blurb:{ app:'Ticket requests arrive here.', cache:'Lists seats that were just checked.', db:'Every seat ever sold. Big and slow.' },
+    customers:[
+      { name:'Sera', story:'She wanted tickets for her dad.' }, { name:'Tomasi', story:'He had saved for months.' },
+      { name:'Losana', story:'Her friends were waiting on her.' }, { name:'Raj', story:'He was buying for his whole class.' }, { name:'Ana', story:'It was the final day.' } ],
+  },
+};
+
+// ---------- visual evidence: show the answer, don't just say it ----------
+const sawtooth = () => { const s = []; for (let i = 0; i < 48; i++) { if (i < 8) { s.push(12 + (i % 2)); continue; } const d = (i - 8) % 13; s.push(10 + d * 6.5); } return s; };
+const flat = v => Array.from({ length:48 }, (_, i) => v + ((i * 7) % 3));
+const bars = (rows, max) => ({ type:'bars', rows, max });
+
+// ======================= Lesson 1 + disguise: the Empty Fridge =======================
+function makeCacheScenario(t, o) {
+  const tag = o.tag;
+  return {
+    id:t.id, sim:'cache', title:o.title, symptom:o.symptom, theme:t, tools:['metrics', 'logs', 'changes'],
+    focus:99, startImpact:5, baseImpact:4,
+    lock:{ changes:['cache:logs'] },
+    accuseNeeds:['cache:logs', 'app:changes'],
+    codexOn:{ 'cache:metrics':['cache'], 'cache:logs':['logs', 'symptom'], 'app:changes':['deploy'] },
+    mission:[
+      { label:'Look around', done:c => c.insp('app:metrics') && c.insp('cache:metrics') && c.insp('db:metrics') },
+      { label:'Find the cause', done:c => c.insp('cache:logs') && c.insp('app:changes') },
+      { label:'Fix it', done:c => c.G.status !== 'active' } ],
+    hints:['Check all three places.', 'Read the diary of the one that found nothing. Then ask what changed.', 'Pick the cause, not the symptom.'],
+    components:{
+      app:{ name:t.app, role:'cause', calls:['cache', 'db'], clues:{
+        metrics:`Each ${t.thing} takes 14 seconds. It should take 1.`,
+        logs:`"${t.cache}: nothing. ${t.db}: waited 13 seconds." Again and again.`,
+        changes:`Update #${o.rel}, ${o.ago + 1} minutes ago: "${o.relName}". The slowdown began ${o.ago} minutes ago.` } },
+      cache:{ name:t.cache, role:'symptom', calls:[], clues:{
+        metrics:`The ${t.cacheNoun} works fine, but it found 0 ${t.item}s out of 100. Normally 94.`,
+        logs:`Orders ask for ${tag} like "${o.keys[0]}" and "${o.keys[1]}". The ${t.cacheNoun} has never seen them.`,
+        changes:`Nobody touched the ${t.cacheNoun} in 30 days.` } },
+      db:{ name:t.db, role:'decoy', calls:[], clues:{
+        metrics:`The ${t.dbNoun} is 98% busy. Look at that line!`,
+        logs:`Just ordinary requests, but 40 times more than usual.`,
+        changes:`No changes for 3 weeks.` } } },
+    short:{ app:{ metrics:'14 sec per order', logs:`${t.cacheNoun} empty → ${t.dbNoun} wait`, changes:`update #${o.rel} · ${o.ago + 1} min ago` },
+            cache:{ metrics:'0 of 100 found', logs:'tags never seen before', changes:'untouched 30 days' },
+            db:{ metrics:'98% busy', logs:'40× normal requests', changes:'no changes' } },
+    visual:{
+      'app:metrics':bars([{ label:'Normal', v:1, text:'1 sec', c:'good' }, { label:'Now', v:14, text:'14 sec', c:'bad' }], 14),
+      'cache:metrics':bars([{ label:'Normal', v:94, text:'94 / 100', c:'good' }, { label:'Now', v:0, text:'0 / 100', c:'bad' }], 100),
+      'db:metrics':bars([{ label:'Normal', v:20, text:'20% busy', c:'good' }, { label:'Now', v:98, text:'98% busy', c:'bad' }], 100),
+      'db:logs':bars([{ label:'Normal', v:1, text:'1×', c:'good' }, { label:'Now', v:40, text:'40×', c:'bad' }], 40),
+      'app:logs':{ type:'lines', lines:[`${t.cache}: nothing ✗`, `${t.db}: waited 13 sec 🐌`, `${t.cache}: nothing ✗`, `${t.db}: waited 13 sec 🐌`] },
+      'cache:logs':{ type:'tags', askTitle:'Orders ask for', haveTitle:`${t.cache} has`, ask:o.keys, have:t.have, note:'No match. Every tag ends in a new time, so the fridge can never find one.' } },
+    mitigations:[],
+    fixes:[
+      { id:'f_rollback', target:'app', label:`Undo update #${o.rel} (rollback)`, cost:1, kind:'root',
+        outcome:`The old ${tag} are back. The ${t.cacheNoun} finds ${t.item}s again and the line melts away.` },
+      { id:'f_staff', target:'app', label:`Hire more ${t.appNoun} staff`, cost:1, kind:'wrong', penalty:12,
+        outcome:`More staff, same problem. They all still walk to the empty ${t.cacheNoun} and the busy ${t.dbNoun}.` },
+      { id:'f_restock', target:'cache', label:`Refill the ${t.cacheNoun}`, cost:1, kind:'wrong', penalty:12,
+        outcome:`The refilled items have the old ${tag}. New orders use new ${tag}, so still nothing matches.` },
+      { id:'f_clerks', target:'db', label:`Add more ${t.dbNoun} helpers`, cost:1, kind:'partial', world:{ broken:true, clerks:true },
+        outcome:`The line moves faster, but the ${t.dbNoun} still does 40 times the work. Time bought, cause not fixed.` } ],
+    rootSummary:`Update #${o.rel} changed how the ${t.appNoun} writes ${tag}, so the ${t.cacheNoun} never recognised an ${t.thing}. Everything went to the ${t.dbNoun}, a huge line formed, and people gave up.`,
+    lessons:[`The busy ${t.dbNoun} was a symptom. The cause was further back.`, `"What changed?" found the culprit fast.`, `Fix the cause (undo the update), not just the symptom.`],
+    intro:t.id === 'canteen' ? [
+      { focus:'app',   tap:'app',   text:'Let\'s learn the tuckshop. Tap the Counter to walk there.', ok:'The counter is where every order arrives.', world:{ hit:.7 } },
+      { focus:'cache', tap:'cache', text:'Now tap the Fridge.', ok:'The fridge keeps the popular snacks, so grabbing one is quick ✓', world:{ hit:.7 } },
+      { focus:'db',    tap:'db',    text:'Now tap the Storeroom.', ok:'The storeroom has everything, but it\'s far away. Slow! Only used when the fridge doesn\'t have it.', world:{ hit:.7 } },
+      { focus:'gate',  text:'On a normal day the fridge answers almost everything. No line, happy students.', world:{ hit:.94 } },
+      { focus:'db',    text:'But today something broke. Watch the storeroom line grow, and students getting upset.', world:{ broken:true }, ff:10 } ]
+    : [ { focus:'app', text:t.welcome, world:{ hit:.7 } }, { focus:'cache', text:`The ${t.cacheNoun} keeps the most popular ${t.item}s. Quick ✓`, world:{ hit:.7 } },
+        { focus:'db', text:`If it doesn't have it, someone goes to the ${t.dbNoun}. Slow!`, world:{ hit:.7 } },
+        { focus:'gate', text:`Normally the ${t.cacheNoun} answers almost everything. Happy customers.`, world:{ hit:.94 } },
+        { focus:'db', text:`But today something broke. Watch the ${t.dbNoun} line grow.`, world:{ broken:true }, ff:10 } ],
+    replay:[
+      { focus:'app',   title:'1 · An update goes live',    text:`Update #${o.rel} ships: "${o.relName}". Nothing looks wrong yet.`, world:{} },
+      { focus:'cache', title:'2 · The labels stop matching', text:`The ${t.cacheNoun} only knows the old ${tag}. Every lookup misses.`, world:{ broken:true } },
+      { focus:'db',    title:'3 · Everyone goes to the ' + t.dbNoun, text:`With the ${t.cacheNoun} useless, every ${t.thing} makes the long walk. 40 times the work.`, world:{ broken:true }, ff:4 },
+      { focus:'db',    title:'4 · The line grows',         text:`The ${t.dbNoun} can only serve one at a time. Everyone waits longer.`, world:{ broken:true }, ff:16 },
+      { focus:'gate',  title:'5 · People give up',         text:`The ${t.dbNoun} looked guilty, but the cause was the update, right at the start.`, world:{ broken:true }, leave:true } ],
+    teach:{ q:`Why did the line get so long?`, options:[
+      { t:`The ${t.dbNoun} broke.`, ok:false, why:`It was busy, not broken. Busy was the symptom. Ask what made it busy.` },
+      { t:`An update changed the ${tag}, so the ${t.cacheNoun} stopped helping.`, ok:true, why:`Yes! Update → ${t.cacheNoun} misses → everyone goes to the ${t.dbNoun} → line grows.` },
+      { t:`More customers showed up.`, ok:false, why:`The crowd was normal. The work per customer exploded.` } ] },
+    mentor:() => [
+      { target:'app',   done:c => c.insp('app:metrics'),   say:`Tap the ${t.app} 👆 to walk there. Then tap 👀 Check numbers.` },
+      { target:'db',    done:c => c.insp('db:metrics'),    say:`14 seconds, not 1! Where's the wait? Tap the ${t.db} and check its numbers.` },
+      { target:'cache', done:c => c.insp('cache:metrics'), say:`The ${t.db} is swamped. But who's sending it all that work? Check the ${t.cache}.` },
+      { target:'cache', done:c => c.insp('cache:logs'),    say:`The ${t.cache} found 0 out of 100! Why? Tap 📖 Read the diary.` },
+      { target:'app',   done:c => c.insp('app:changes'),   say:`Every tag is brand new. Something changed. Tap the ${t.app}, then ❓ What changed?` },
+      { target:null,    done:c => c.G.hypothesis !== null || c.G.status !== 'active', say:`An update came right before the trouble. Press 💡 "I found the cause", then pin your clues.` },
+      { target:null,    done:c => c.G.status !== 'active', say:`Pick a fix that removes the cause, not one that hides it.` } ],
+  };
+}
+
+// ======================= Lesson 2: the Slow Afternoon =======================
+function makeLeakScenario() {
+  const t = THEMES.tuckshop2;
+  return {
+    id:'leak', sim:'leak', title:'Lesson 2 · The Slow Afternoon', symptom:'Every afternoon the tuckshop gets slower and slower, until students give up.', theme:t,
+    tools:['metrics', 'logs', 'changes', 'trend'], focus:99, startImpact:5, baseImpact:4,
+    lock:{ trend:['cache:metrics', 'db:metrics'], changes:['app:trend'] },
+    accuseNeeds:['app:trend', 'app:changes'],
+    codexOn:{ 'cache:metrics':['ruleout'], 'app:trend':['trend'], 'app:logs':['leak', 'logs'], 'app:changes':['deploy'] },
+    mission:[
+      { label:'Look around', done:c => c.insp('app:metrics') && c.insp('cache:metrics') && c.insp('db:metrics') },
+      { label:'Find the cause', done:c => c.insp('app:trend') && c.insp('app:changes') },
+      { label:'Fix it', done:c => c.G.status !== 'active' } ],
+    hints:['Check all three places. Rule out the ones that look fine.', 'Graph the Counter to see how it changed over time. Then ask what changed.', 'A restart is not a fix. Remove the cause.'],
+    components:{
+      app:{ name:'Counter', role:'cause', calls:['cache', 'db'], clues:{
+        metrics:'Right now each order takes 9 seconds. This morning it took 1.',
+        logs:'"Order #1 saved. Order #2 saved. … Order #48,000 saved." Nothing is ever deleted.',
+        changes:'Update #15, 3 days ago: "Keep a list of recent orders for receipts".',
+        trend:'Every day it starts fast and gets slower and slower. A restart makes it fast again, then it climbs again.' } },
+      cache:{ name:'Fridge', role:'innocent', calls:[], clues:{
+        metrics:'The fridge is fine. It finds 94 snacks out of 100, like always.',
+        logs:'Nothing unusual. Normal orders, normal answers.',
+        changes:'Nobody touched the fridge in 30 days.',
+        trend:'Flat all week. Steady.' } },
+      db:{ name:'Storeroom', role:'innocent', calls:[], clues:{
+        metrics:'The storeroom is only 22% busy. Plenty of room.',
+        logs:'Normal. Just a few quick requests.',
+        changes:'No changes for 3 weeks.',
+        trend:'Flat all week. Steady.' } } },
+    short:{ app:{ metrics:'9 sec per order', logs:'48,000 saved, 0 deleted', changes:'update #15 · 3 days ago', trend:'climbs, resets, climbs' },
+            cache:{ metrics:'94 / 100 found', logs:'all normal', changes:'untouched 30 days', trend:'flat all week' },
+            db:{ metrics:'22% busy', logs:'all normal', changes:'no changes', trend:'flat all week' } },
+    visual:{
+      'app:metrics':bars([{ label:'This morning', v:1, text:'1 sec', c:'good' }, { label:'Now', v:9, text:'9 sec', c:'bad' }], 9),
+      'cache:metrics':bars([{ label:'Normal', v:94, text:'94 / 100', c:'good' }, { label:'Now', v:94, text:'94 / 100', c:'good' }], 100),
+      'db:metrics':bars([{ label:'Normal', v:22, text:'22% busy', c:'good' }, { label:'Now', v:22, text:'22% busy', c:'good' }], 100),
+      'app:logs':{ type:'lines', lines:['Order #1 saved', 'Order #2 saved', 'Order #3 saved', '… … …', 'Order #48,000 saved', 'Orders deleted: 0 ❗'] },
+      'app:trend':{ type:'graph', series:sawtooth(), marks:[{ i:8, label:'update #15' }], x0:'3 days ago', x1:'now', y:'clutter', note:'Climb → restart → climb → restart. A sawtooth means something keeps piling up.' },
+      'cache:trend':{ type:'graph', series:flat(20), marks:[], x0:'3 days ago', x1:'now', y:'misses', note:'Flat. Nothing is changing here.' },
+      'db:trend':{ type:'graph', series:flat(22), marks:[], x0:'3 days ago', x1:'now', y:'busy', note:'Flat. Nothing is changing here.' } },
+    mitigations:[{ id:'m_restart', label:'Restart the Counter', cost:1, rateMult:.5, note:'The counter is fast again… for now. The cause is still there.' }],
+    fixes:[
+      { id:'f_fixleak', target:'app', label:'Fix the leak: delete finished orders from the list', cost:1, kind:'root',
+        outcome:'The counter now tidies up after every order. The clutter stops piling up, and the afternoon stays fast.' },
+      { id:'f_rollback15', target:'app', label:'Undo update #15 (rollback)', cost:1, kind:'root',
+        outcome:'The list is gone, so the clutter is gone. It works, but you also lose the receipt feature. Fixing the leak would have kept it.' },
+      { id:'f_hourly', target:'app', label:'Restart the Counter every hour', cost:1, kind:'partial', world:{ leakRate:.014, autoRestart:40 },
+        outcome:'It never gets very slow now. But the clutter still piles up and gets wiped every hour. A bandage, not a fix.' },
+      { id:'f_bigger', target:'app', label:'Give the Counter a bigger desk (more memory)', cost:1, kind:'partial', world:{ leakRate:.005 },
+        outcome:'It takes longer to clog up. But it still clogs. You bought time, not a fix.' },
+      { id:'f_refill2', target:'cache', label:'Refill the Fridge', cost:1, kind:'wrong', penalty:12,
+        outcome:'The fridge was never the problem. It was already finding 94 out of 100.' },
+      { id:'f_helpers2', target:'db', label:'Add more Storeroom helpers', cost:1, kind:'wrong', penalty:12,
+        outcome:'The storeroom was only 22% busy. It had plenty of room.' } ],
+    rootSummary:'Update #15 made the counter keep a list of every order for receipts, and never delete anything. The list grows all day, so the counter clogs and slows. A restart empties it, so it feels fixed, then the list grows again.',
+    lessons:['A graph over time tells the story one number can\'t.', 'Checking the fridge and storeroom and finding them fine was progress. That\'s ruling out.', 'A restart is a mitigation: it buys time, but the cause is still there.', 'A sawtooth (climb, reset, climb) usually means something is piling up.'],
+    intro:[
+      { focus:'app',  text:'It\'s morning at the tuckshop. The counter is fast. Orders fly through.', world:{} },
+      { focus:'app',  text:'As the day goes on, papers pile up on the counter. Watch the clutter grow.', world:{ leakRate:.03, L:.05 }, ff:6 },
+      { focus:'app',  text:'By the afternoon it can barely move. A long line forms and students get upset.', world:{ leakRate:.03, L:.85 }, ff:8 },
+      { focus:'gate', text:'Staff restart the counter: fast again! But tomorrow afternoon it happens again. Why?', world:{ leakRate:.03, L:0 }, ff:3 } ],
+    replay:[
+      { focus:'app', title:'1 · An update goes live',     text:'Update #15 ships: "Keep a list of recent orders for receipts". Everything looks fine.', world:{} },
+      { focus:'app', title:'2 · Every order leaves clutter', text:'Each order is saved to the list. Nothing is ever deleted, so the pile grows.', world:{ leakRate:.03, L:.05 }, ff:6 },
+      { focus:'app', title:'3 · The pile gets heavy',     text:'The bigger the pile, the longer each order takes. A line starts to form.', world:{ leakRate:.03, L:.6 }, ff:8 },
+      { focus:'gate', title:'4 · People give up',         text:'By the afternoon the counter is crawling. Students leave.', world:{ leakRate:.03, L:.95 }, ff:6, leave:true },
+      { focus:'app', title:'5 · The restart fools everyone', text:'A restart clears the pile, so it feels fixed. But the pile starts growing again right away.', world:{ leakRate:.03, L:0 }, ff:3 } ],
+    teach:{ q:'Why does restarting only help for a while?', options:[
+      { t:'The restart breaks the counter again.', ok:false, why:'The restart does clear the pile. The problem is what happens next.' },
+      { t:'The counter keeps piling up clutter after the restart, so the problem comes back.', ok:true, why:'Yes! The cause is still there. A restart is a mitigation, not a fix.' },
+      { t:'Students get used to waiting.', ok:false, why:'They give up. The counter really does get slower.' } ] },
+    mentor:() => [
+      { target:'app',   done:c => c.insp('app:metrics'),   say:'Tap the Counter 👆 to walk there. Then tap 👀 Check numbers.' },
+      { target:'app',   done:c => c.G.mitigations.includes('m_restart'), say:'9 seconds! Customers are upset. A quick 🩹 Restart can buy time. It won\'t fix the cause.' },
+      { target:'cache', done:c => c.insp('cache:metrics') && c.insp('db:metrics'), say:'Is it the Fridge or the Storeroom? Check both. If they\'re fine, you can rule them out.' },
+      { target:'app',   done:c => c.insp('app:trend'),     say:'Both fine! So back to the Counter. Try the new tool: 📈 Graph it.' },
+      { target:'app',   done:c => c.insp('app:logs'),      say:'See the sawtooth? Something piles up. Read the 📖 diary to see what.' },
+      { target:'app',   done:c => c.insp('app:changes'),   say:'A list that never gets cleaned! Ask ❓ What changed?' },
+      { target:null,    done:c => c.G.hypothesis !== null || c.G.status !== 'active', say:'Update #15 added the list. Press 💡 "I found the cause", then pin your clues.' },
+      { target:null,    done:c => c.G.status !== 'active', say:'A restart helps for a while, but a real fix removes the cause.' } ],
+  };
+}
+
+const SCENARIOS = {
+  canteen:makeCacheScenario(THEMES.canteen, { title:'Lesson 1 · The Empty Fridge', symptom:'Students are waiting forever for their food, then giving up.', tag:'name tags', rel:12, ago:40, relName:'New name-tag maker', keys:['roti-12:03', 'samosa-12:04', 'juice-12:04'] }),
+  leak:makeLeakScenario(),
+  ticket_rush:makeCacheScenario(THEMES.ticket_rush, { title:'Lesson 1b · The Sevens Rush (new disguise)', symptom:'Fans buying Fiji Sevens tickets get a spinning wheel, then an error.', tag:'seat codes', rel:31, ago:27, relName:'New seat-code maker', keys:['seat-A12:09', 'seat-A13:09', 'seat-C07:10'] }),
+};
+const LESSON_ORDER = ['canteen', 'leak', 'ticket_rush'];
+
+</script>
+<script id="engine">
+// ---- The pure engine. No DOM. This is the part worth keeping. ----
+const Engine = (() => {
+  const inspectedAny = (s, id) => Object.keys(s.inspected).some(k => k.split(':')[0] === id);
+  const pace = s => Math.round(s.sc.baseImpact * s.rateMult);
+  const reject = (s, text) => ({ ...s, last:{ rejected:true, text } });
+  const addLog = (s, tone, text) => [...s.log, { step:s.step, tone, text }];
+
+  // Settle: check the loss conditions after any action that didn't win.
+  function settle(s) {
+    if (s.status !== 'active') return s;
+    if (s.impact >= 100) return { ...s, impact:100, status:'lost', outcome:{ kind:'lost', why:'impact' } };
+    if (s.focus <= 0)    return { ...s, status:'lost', outcome:{ kind:'lost', why:'focus' } };
+    return s;
+  }
+
+  function start(sc) {
+    return { sc, step:0, focus:sc.focus, impact:sc.startImpact, rateMult:1, status:'active', outcome:null,
+             hypothesis:null, inspected:{}, notebook:[], mitigations:[], fixesTried:[],
+             log:[{ step:0, tone:'info', text:'You are paged: ' + sc.symptom }], last:null };
+  }
+
+  function reduce(s, a) {
+    if (s.status !== 'active') return reject(s, 'The incident is over. Start a new one.');
+    const sc = s.sc;
+
+    if (a.type === 'inspect') {
+      const tool = TOOLS[a.tool], comp = sc.components[a.target], key = a.target + ':' + a.tool;
+      if (!tool || !comp) return reject(s, 'Unknown tool or component.');
+      if (s.inspected[key]) return reject(s, 'You already did that. The answer is in your notebook.');
+      if (s.focus < tool.cost) return reject(s, `Not enough Focus: that costs ${tool.cost}, you have ${s.focus}.`);
+      const dImp = pace(s), step = s.step + 1;
+      return settle({ ...s, step, focus:s.focus - tool.cost, impact:s.impact + dImp,
+        inspected:{ ...s.inspected, [key]:true },
+        notebook:[...s.notebook, { step, target:a.target, tool:a.tool, text:comp.clues[a.tool] }],
+        last:{ text:`${tool.label} on ${comp.name}.`, dFocus:-tool.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'hypothesize') {
+      const comp = sc.components[a.target];
+      if (!comp) return reject(s, 'Unknown component.');
+      return { ...s, hypothesis:a.target,
+        log:addLog(s, 'info', `Hypothesis: the problem is in ${comp.name}.`),
+        last:{ text:`You commit to a hypothesis: ${comp.name}. (Free, but you will be held to it.)`, dFocus:0, dImpact:0 } };
+    }
+
+    if (a.type === 'mitigate') {
+      const m = sc.mitigations.find(x => x.id === a.id);
+      if (!m) return reject(s, 'Unknown mitigation.');
+      if (s.mitigations.includes(m.id)) return reject(s, 'Already applied.');
+      if (s.focus < m.cost) return reject(s, `Not enough Focus: that costs ${m.cost}, you have ${s.focus}.`);
+      const next = { ...s, step:s.step + 1, focus:s.focus - m.cost, rateMult:s.rateMult * m.rateMult, mitigations:[...s.mitigations, m.id] };
+      const dImp = pace(next);
+      return settle({ ...next, impact:s.impact + dImp,
+        log:addLog(next, 'mit', `${m.label}: ${m.note}`),
+        last:{ text:`Mitigation applied: ${m.label}.`, dFocus:-m.cost, dImpact:dImp } });
+    }
+
+    if (a.type === 'fix') {
+      const f = sc.fixes.find(x => x.id === a.id);
+      if (!f) return reject(s, 'Unknown fix.');
+      const comp = sc.components[f.target];
+      if (!inspectedAny(s, f.target)) return reject(s, `You have not even looked at ${comp.name}. Do not change what you have not inspected.`);
+      if (s.hypothesis !== f.target) return reject(s, `State your hypothesis first. Say that you believe ${comp.name} is the problem before you touch production.`);
+      if (s.fixesTried.includes(f.id)) return reject(s, 'You already tried that.');
+      if (s.focus < f.cost) return reject(s, `Not enough Focus: that costs ${f.cost}, you have ${s.focus}.`);
+      const step = s.step + 1, focus = s.focus - f.cost;
+      if (f.kind === 'root' || f.kind === 'partial') {
+        return { ...s, step, focus, status:'won', outcome:{ kind:f.kind, fix:f },
+          log:addLog({ ...s, step }, f.kind === 'root' ? 'good' : 'warn', `${f.label}: ${f.outcome}`),
+          last:{ text:`Fix applied: ${f.label}.`, dFocus:-f.cost, dImpact:0 } };
+      }
+      const dImp = pace(s) + f.penalty;
+      return settle({ ...s, step, focus, impact:s.impact + dImp, hypothesis:null,
+        fixesTried:[...s.fixesTried, f.id],
+        log:addLog({ ...s, step }, 'bad', `${f.label}: ${f.outcome} Your hypothesis about ${comp.name} is disproven.`),
+        last:{ text:`Fix failed: ${f.label}. Hypothesis cleared.`, dFocus:-f.cost, dImpact:dImp } });
+    }
+    return reject(s, 'Unknown action.');
+  }
+
+  function debrief(s) {
+    const examined = [...new Set(Object.keys(s.inspected).map(k => k.split(':')[0]))];
+    const o = s.outcome || {};
+    let grade, blurb;
+    if (o.kind === 'root') {
+      grade = (s.impact < 60 && s.fixesTried.length === 0) ? 'Clean resolution' : 'Resolved, with scars';
+      blurb = 'You found and fixed the root cause.';
+    } else if (o.kind === 'partial') {
+      grade = 'Patched, not fixed';
+      blurb = 'The pages stopped, but the underlying bug is still there.';
+    } else if (o.why === 'impact') {
+      grade = 'Customers walked away'; blurb = 'Impact hit 100 before you found the cause.';
+    } else {
+      grade = 'Out of steam. Time to escalate'; blurb = 'You ran out of Focus before resolving the incident.';
+    }
+    return { grade, blurb, examined, wrongFixes:s.fixesTried.length, mitigations:s.mitigations.length };
+  }
+
+  return { start, reduce, debrief, inspectedAny };
+})();
+
+</script>
+<script id="page">
+// =============== world layout (presentation only) ===============
+const MAP_W = 12, MAP_H = 10;
+const BLD = {
+  app:   { x:4, y:4, h:58, color:'#3b82f6' },
+  cache: { x:9, y:1, h:36, color:'#10b981' },
+  db:    { x:9, y:8, h:50, color:'#f59e0b' },
+};
+const DOOR_TILE = { app:[3, 5], cache:[8, 2], db:[8, 9] };
+const SPAWN = { x:3.5, y:8.5 };
+const QY = i => i % 2 ? 2.5 : 3.2;
+const THRESH = [28, 45, 60, 75, 90];
+const R = {
+  gate:[[.5,4.5],[3.5,4.5]], thru:[[3.5,4.5],[6.5,4.5]],
+  toCache:[[6.5,4.5],[6.5,1.5],[8.5,1.5]], toDb:[[6.5,4.5],[6.5,8.5],[8.5,8.5]],
+};
+const rev = p => p.slice().reverse();
+const cat = (...ps) => ps.reduce((a, p) => a.concat(a.length && a[a.length - 1][0] === p[0][0] && a[a.length - 1][1] === p[0][1] ? p.slice(1) : p), []);
+const P_TO_SHELF = cat(R.gate, R.thru, R.toCache), P_HOME_FROM_SHELF = cat(rev(R.toCache), rev(R.thru), rev(R.gate)), P_HOME_FROM_DB = cat(rev(R.toDb), rev(R.thru), rev(R.gate));
+const plen = p => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
+function pointAlong(p, d) { d = Math.max(0, d); for (let i = 1; i < p.length; i++) { const l = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); if (d <= l) { const f = d / (l || 1); return [p[i - 1][0] + (p[i][0] - p[i - 1][0]) * f, p[i - 1][1] + (p[i][1] - p[i - 1][1]) * f]; } d -= l; } return p[p.length - 1]; }
+function truncate(p, d) { const out = [p[0]]; for (let i = 1; i < p.length; i++) { const l = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); if (d >= l) { out.push(p[i]); d -= l; } else { out.push(pointAlong(p.slice(i - 1), d)); break; } } return out; }
+const DB_LEN = plen(R.toDb), GATE_LEN = plen(R.gate), SLOT = 0.45;
+
+// =============== helpers & layout (phones, tablets, laptops) ===============
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage may be blocked */ } } };
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const COARSE = (() => { try { return matchMedia('(pointer:coarse)').matches; } catch (e) { return false; } })();
+let cw, ch, dpr, S = 1, OX = 0, OY = 0, compact = false, portrait = false, rotateDismissed = false;
+const proj = (x, y, z = 0) => ({ x:(x - y) * 32, y:(x + y) * 16 - z });
+function resize() {
+  dpr = window.devicePixelRatio || 1; cw = innerWidth; ch = innerHeight; cv.width = cw * dpr; cv.height = ch * dpr;
+  compact = cw < 820 || ch < 560; portrait = ch > cw;
+  document.body.classList.toggle('compact', compact); document.body.classList.toggle('portrait', compact && portrait); document.body.classList.toggle('coarse', COARSE);
+  const bw = (MAP_W + MAP_H) * 32, bh = (MAP_W + MAP_H) * 16 + 100;
+  const top = compact ? (portrait ? 120 : 52) : 64, bottom = compact ? 92 : 148, left = compact ? (portrait ? 0 : Math.min(cw * .26, 230)) : 150;
+  const availW = cw - left, availH = ch - top - bottom;
+  S = Math.max(.3, Math.min(availW * .98 / bw, availH / bh, 1.6));
+  OX = left + availW / 2 - S * (MAP_W - MAP_H) * 16; OY = top + S * 100 + (availH - S * bh) / 2;
+  const r = $('#rotate'); if (r) r.style.display = compact && portrait && !rotateDismissed ? 'block' : 'none';
+}
+addEventListener('resize', () => { resize(); if (G) renderAll(); }); addEventListener('orientationchange', () => setTimeout(() => { resize(); if (G) renderAll(); }, 200));
+$('#rotateX').onclick = () => { rotateDismissed = true; $('#rotate').style.display = 'none'; };
+function shade(hex, f) { const n = parseInt(hex.slice(1), 16), c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; }
+function poly(pts, fill, stroke) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } }
+function box(x, y, w, d, h, color, windows = true, z0 = 0) {
+  const T = h + z0, t = [proj(x, y, T), proj(x + w, y, T), proj(x + w, y + d, T), proj(x, y + d, T)];
+  const rf = [proj(x + w, y, z0), proj(x + w, y + d, z0), proj(x + w, y + d, T), proj(x + w, y, T)], lf = [proj(x, y + d, z0), proj(x + w, y + d, z0), proj(x + w, y + d, T), proj(x, y + d, T)];
+  poly(lf, shade(color, .72), 'rgba(0,0,0,.25)'); poly(rf, shade(color, .52), 'rgba(0,0,0,.25)'); poly(t, shade(color, 1.08), 'rgba(255,255,255,.15)');
+  if (windows && h > 30) for (const [A, B, f] of [[lf[0], lf[1], .9], [rf[0], rf[1], .7]]) {
+    const rows = Math.floor(h / 18) - 1;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < 3; c++) { const u0 = .12 + c * .3, u1 = u0 + .18, v0 = .14 + r * (.7 / Math.max(1, rows)), v1 = v0 + .09, Pp = (u, v) => ({ x:A.x + (B.x - A.x) * u, y:A.y + (B.y - A.y) * u - h * v }); poly([Pp(u0, v0), Pp(u1, v0), Pp(u1, v1), Pp(u0, v1)], `rgba(255,236,170,${.22 * f + ((r * 3 + c) % 3 === 0 ? .25 : 0)})`); }
+  }
+}
+const UI = () => Math.min(1.9, Math.max(1, .8 / S));
+
+// =============== state ===============
+let G = null, SC = null, mode = 'guided', phase = 'menu', steps = [], bld = [], player, ada, cust = [], keys = new Set(), path = [], hoverId = null;
+let orders = [], whQ = [], whIncoming = 0, counterQ = [], cInc = 0, cSvcT = 0, rstT = 0, spawnT = 0, whT = 0, world = {}, endWorld = {}, flashes = [], parts = [];
+let version = 0, nearId = null, T = 0, toastTimer, popTimer, endTimer, replay = null, intro = null, acc = null, ring = null, adaOverride = null, savedCust = null, popQueue = [], bubbleHTML = '', pins = {};
+let lastInput = 0, nudged = false;
+const known = new Set(store.get('nexzonia_words', [])), BLOCK = new Set();
+let progress = store.get('nexzonia_progress', {});
+const healthyWorld = () => ({ broken:false, clerks:false, hit:.94, counterSvc:SC.sim === 'leak', leakRate:0, L:0, autoRestart:0 });
+const troubleWorld = () => SC.sim === 'leak' ? { ...healthyWorld(), leakRate:.014 } : { ...healthyWorld(), broken:true };
+
+// =============== session log: where do students get stuck? ===============
+let LOGS = [], sessT0 = 0, lastEvT = 0, stepTimes = [], sessionSaved = false;
+const nowMs = () => Math.round(performance.now() - sessT0);
+function logEv(type, data) {
+  const t = nowMs(); if (lastEvT && t - lastEvT > 8000 && (phase === 'play' || phase === 'intro')) LOGS.push({ t:lastEvT, type:'idle', ms:t - lastEvT, phase, step:curStepIdx() });
+  LOGS.push({ t, type, ...(data || {}) }); lastEvT = t;
+}
+const curStepIdx = () => { const s = steps.find(x => !x.done(mctx())); return s ? steps.indexOf(s) : -1; };
+function markInput() { lastInput = performance.now(); if (nudged) { nudged = false; $('#bubble').classList.remove('shake'); } }
+addEventListener('pointerdown', markInput); addEventListener('keydown', markInput);
+function summary() {
+  const idle = LOGS.filter(l => l.type === 'idle'), tools = LOGS.filter(l => l.type === 'tool'), first = tools[0];
+  const bySt = {}; idle.forEach(l => { bySt[l.step] = (bySt[l.step] || 0) + l.ms; });
+  const worst = Object.entries(bySt).sort((a, b) => b[1] - a[1])[0];
+  return { when:new Date().toISOString(), lesson:SC.id, mode, device:{ w:innerWidth, h:innerHeight, touch:COARSE, ua:navigator.userAgent.slice(0, 90) },
+    outcome:G.status === 'won' ? G.outcome.kind : G.status, durationSec:Math.round(nowMs() / 1000), timeToFirstToolSec:first ? Math.round(first.t / 1000) : null,
+    tools:tools.length, idleGaps:idle.length, idleTotalSec:Math.round(idle.reduce((s, l) => s + l.ms, 0) / 1000), stuckestStep:worst ? +worst[0] : null,
+    groundTaps:LOGS.filter(l => l.type === 'tap' && l.what === 'ground').length, rejected:LOGS.filter(l => l.type === 'rejected').length, wrongFixes:G.fixesTried.length,
+    hints:LOGS.filter(l => l.type === 'hint').length, nudges:LOGS.filter(l => l.type === 'nudge').length, pins:Object.keys(pins).length, teachWrong:LOGS.filter(l => l.type === 'teach' && !l.ok).length,
+    saved:cust.filter(c => c.state === 'happy').length, words:[...known], stepTimesSec:stepTimes.map(t => Math.round(t / 1000)), events:LOGS };
+}
+function saveSession() {
+  if (sessionSaved || !SC) return; sessionSaved = true;
+  const all = store.get('nexzonia_sessions', []), s = summary(); delete s.events; all.push(s); store.set('nexzonia_sessions', all.slice(-60));
+  if (G.status === 'won') { progress[SC.id] = true; store.set('nexzonia_progress', progress); }
+}
+function copyText(text, host) {
+  const fallback = () => { host.insertAdjacentHTML('beforeend', `<textarea readonly onfocus="this.select()">${esc(text)}</textarea>`); host.querySelector('textarea').select(); };
+  try { navigator.clipboard.writeText(text).then(() => { host.insertAdjacentHTML('beforeend', '<div class="small" style="color:var(--good)">Copied ✓</div>'); }, fallback); } catch (e) { fallback(); }
+}
+
+// =============== simulation (what you SEE; the engine decides what is TRUE) ===============
+function go(o, p, next) { o.path = p; o.pi = 1; o.next = next; o.state = 'move'; o.x = p[0][0]; o.y = p[0][1]; }
+function spawnOrder() {
+  const o = { x:.5, y:4.5, color:'#60a5fa', speed:2.2 + Math.random() * .5, state:'move' };
+  if (world.counterSvc) { const k = counterQ.length + cInc; if (k >= 22) { flashes.push({ x:.9, y:4.1, t:0, ok:false, at:'gate' }); return; } cInc++; go(o, truncate(R.gate, Math.max(0, GATE_LEN - k * SLOT)), 'counterq'); }
+  else go(o, P_TO_SHELF, 'lookup');
+  orders.push(o);
+}
+const cSlot = i => { const p = pointAlong(rev(R.gate), i * SLOT), over = Math.max(0, i - Math.floor(GATE_LEN / SLOT)); return [p[0], p[1], over * 5]; };
+const slotPos = i => { const p = pointAlong(R.toDb, DB_LEN - i * SLOT), over = Math.max(0, i - Math.floor(DB_LEN / SLOT)); return [p[0], p[1], over * 5]; };
+function simStep(dt) {
+  if (world.counterSvc) {
+    world.L = Math.min(1, world.L + world.leakRate * dt);
+    if (world.autoRestart) { rstT += dt; if (rstT >= world.autoRestart) { rstT = 0; world.L = 0; flashes.push({ x:4.9, y:4.9, t:0, ok:true, at:'app', txt:'↻ restart' }); } }
+  }
+  const hitP = world.broken ? 0 : world.hit, interval = world.counterSvc ? .7 : (world.broken ? .55 : .9), svc = world.clerks ? .42 : .9;
+  spawnT -= dt; if (spawnT <= 0 && orders.length < 80) { spawnT = interval; spawnOrder(); }
+  if (world.counterSvc) { cSvcT -= dt; if (cSvcT <= 0 && counterQ.length) { const o = counterQ.shift(); go(o, cat(R.thru, R.toCache), 'lookup'); cSvcT = .3 + 2.4 * world.L; } if (!counterQ.length) cSvcT = Math.max(cSvcT, 0); }
+  whT -= dt; if (whT <= 0 && whQ.length) { const o = whQ.shift(); o.color = '#4ade80'; go(o, P_HOME_FROM_DB, 'done'); whT = svc; }
+  if (!whQ.length) whT = Math.max(whT, 0);
+  orders.forEach(o => {
+    if (o.state === 'wait') { o.t -= dt; if (o.t <= 0) afterLookup(o, hitP); return; }
+    if (o.state === 'queued' || o.state === 'cq') { const q = o.state === 'cq' ? counterQ : whQ, i = q.indexOf(o); if (i < 0) return; const s = o.state === 'cq' ? cSlot(i) : slotPos(i), k = Math.min(1, dt * 6); o.x += (s[0] - o.x) * k; o.y += (s[1] - o.y) * k; o.z = s[2]; return; }
+    if (o.state !== 'move') return;
+    let step = o.speed * dt;
+    while (step > 0 && o.pi < o.path.length) { const tg = o.path[o.pi], dx = tg[0] - o.x, dy = tg[1] - o.y, d = Math.hypot(dx, dy); if (d <= step) { o.x = tg[0]; o.y = tg[1]; o.pi++; step -= d; } else { o.x += dx / d * step; o.y += dy / d * step; step = 0; } }
+    if (o.pi >= o.path.length) arrive(o);
+  });
+  orders = orders.filter(o => o.state !== 'dead');
+  flashes.forEach(f => f.t += dt); flashes = flashes.filter(f => f.t < 1.1);
+}
+function arrive(o) {
+  if (o.next === 'lookup') { o.state = 'wait'; o.t = .45; }
+  else if (o.next === 'toqueue') { whIncoming--; o.state = 'queued'; o.z = 0; whQ.push(o); }
+  else if (o.next === 'counterq') { cInc--; o.state = 'cq'; o.z = 0; counterQ.push(o); }
+  else if (o.next === 'done') { o.state = 'dead'; if (!replay) flashes.push({ x:.9, y:4.1, t:0, ok:true, at:'gate' }); }
+}
+function afterLookup(o, hitP) {
+  const hit = Math.random() < hitP; flashes.push({ x:8.8, y:1.8, t:0, ok:hit, at:'cache' });
+  if (hit) { o.color = '#4ade80'; go(o, P_HOME_FROM_SHELF, 'done'); }
+  else {
+    if (whQ.length + whIncoming >= 24) { o.color = '#ef4444'; go(o, P_HOME_FROM_SHELF, 'done'); return; }
+    o.color = '#fbbf24'; const k = whQ.length + whIncoming; whIncoming++;
+    go(o, cat(rev(R.toCache), truncate(R.toDb, Math.max(0, DB_LEN - k * SLOT))), 'toqueue');
+  }
+}
+function ff(sec) { for (let i = 0; i < sec * 30; i++) { T += 1 / 30; simStep(1 / 30); } }
+function resetSim(warm) { orders = []; whQ = []; whIncoming = 0; counterQ = []; cInc = 0; cSvcT = 0; rstT = 0; spawnT = 0; whT = 0; flashes = []; ff(warm); }
+
+// =============== walking: tap a building, the character walks there ===============
+const tileKey = t => t[0] + ',' + t[1];
+function bfs(from, to) {
+  const q = [from], prev = new Map([[tileKey(from), null]]);
+  while (q.length) { const c = q.shift(); if (c[0] === to[0] && c[1] === to[1]) break; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = [c[0] + dx, c[1] + dy]; if (n[0] < 0 || n[1] < 0 || n[0] >= MAP_W || n[1] >= MAP_H || BLOCK.has(tileKey(n)) || prev.has(tileKey(n))) continue; prev.set(tileKey(n), c); q.push(n); } }
+  if (!prev.has(tileKey(to))) return null;
+  const out = []; for (let c = to; c; c = prev.get(tileKey(c))) out.unshift(c); return out;
+}
+const introStep = () => intro && SC.intro[intro.i];
+const canMove = () => phase === 'play' || (phase === 'intro' && introStep().tap && !intro.arrived);
+function walkToTile(t) { if (!canMove()) return; const p = bfs([Math.floor(player.x), Math.floor(player.y)], t); if (p) { path = p.slice(1).map(c => [c[0] + .5, c[1] + .5]); nearId = null; renderPrompt(true); } }
+const worldAt = (px, py) => { const sx = (px - OX) / S, sy = (py - OY) / S, a = sx / 32, b = sy / 16; return [(a + b) / 2, (b - a) / 2]; };
+function buildingAt(px, py) {
+  let best = null, bestD = 0, pad = COARSE ? 22 : 8;
+  bld.forEach(b => { const pts = [[b.x, b.y, 0], [b.x + 2, b.y, 0], [b.x, b.y + 2, 0], [b.x + 2, b.y + 2, 0], [b.x, b.y, b.h + 34], [b.x + 2, b.y, b.h + 34], [b.x, b.y + 2, b.h + 34], [b.x + 2, b.y + 2, b.h + 34]].map(p => proj(p[0], p[1], p[2]));
+    const x0 = OX + S * Math.min(...pts.map(p => p.x)) - pad, x1 = OX + S * Math.max(...pts.map(p => p.x)) + pad, y0 = OY + S * Math.min(...pts.map(p => p.y)) - pad, y1 = OY + S * Math.max(...pts.map(p => p.y)) + pad;
+    if (px >= x0 && px <= x1 && py >= y0 && py <= y1) { const c = proj(b.x + 1, b.y + 1, b.h / 2), dd = Math.hypot(px - (OX + S * c.x), py - (OY + S * c.y)); if (!best || dd < bestD) { best = b; bestD = dd; } } });
+  return best;
+}
+cv.addEventListener('pointermove', e => { if (e.pointerType === 'touch') return; const b = canMove() ? buildingAt(e.clientX, e.clientY) : null; hoverId = b ? b.id : null; cv.classList.toggle('hover', !!b); });
+cv.addEventListener('pointerdown', e => {
+  if (!canMove() || acc) return; const b = buildingAt(e.clientX, e.clientY);
+  if (b) { logEv('tap', { what:b.id }); if (nearId !== b.id) walkToTile(DOOR_TILE[b.id]); return; }
+  const [x, y] = worldAt(e.clientX, e.clientY), t = [Math.floor(x), Math.floor(y)];
+  if (t[0] >= 0 && t[1] >= 0 && t[0] < MAP_W && t[1] < MAP_H && !BLOCK.has(tileKey(t))) { logEv('tap', { what:'ground' }); walkToTile(t); }
+});
+
+// =============== game flow ===============
+function newGame(id, m) {
+  clearTimeout(endTimer); mode = m; SC = SCENARIOS[id]; G = Engine.start(SC); steps = SC.mentor(); version++; replay = null; intro = null; acc = null; ring = null; adaOverride = null; savedCust = null; path = []; popQueue = []; bubbleHTML = ''; pins = {};
+  LOGS = []; stepTimes = []; sessionSaved = false; sessT0 = performance.now(); lastEvT = 0; lastInput = performance.now(); nudged = false;
+  bld = Object.entries(BLD).map(([cid, b]) => ({ id:cid, name:SC.components[cid].name, ...b, w:2, d:2 }));
+  BLOCK.clear(); bld.forEach(b => { for (let x = b.x; x < b.x + b.w; x++) for (let y = b.y; y < b.y + b.d; y++) BLOCK.add(x + ',' + y); });
+  player = { x:SPAWN.x, y:SPAWN.y, walk:0, face:1 }; ada = { x:SPAWN.x - 1.2, y:SPAWN.y + .8, walk:0 };
+  cust = SC.theme.customers.map((c, i) => ({ ...c, thr:THRESH[i], x:2.2 - i * .45, y:QY(i), state:'wait', home:2.2 - i * .45 }));
+  parts = []; nearId = null; T = 0; $('#overlay').classList.remove('show'); $('#drawer').classList.remove('open'); $('#wordPop').classList.remove('show'); clearTimeout(popTimer); resize();
+  world = healthyWorld(); logEv('start', { lesson:id, mode });
+  if (mode === 'guided') { world.hit = .7; resetSim(8); phase = 'intro'; intro = { i:0, arrived:false }; applyIntro(); }
+  else beginPlay();
+}
+function beginPlay() { phase = 'play'; intro = null; ring = null; world = troubleWorld(); resetSim(26); lastInput = performance.now(); logEv('phase', { to:'play' }); renderAll(); }
+function applyIntro() { const st = introStep(); intro.arrived = false; world = { ...healthyWorld(), ...(st.world || {}) }; ring = { focus:st.focus }; path = []; if (st.ff) ff(st.ff); renderAll(); }
+function nextIntro() { logEv('intro_next', { i:intro.i }); if (intro.i < SC.intro.length - 1) { intro.i++; applyIntro(); } else beginPlay(); }
+function saveWords() { store.set('nexzonia_words', [...known]); }
+function unlock(ids) { (ids || []).forEach(i => { if (!known.has(i)) { known.add(i); popQueue.push(i); } }); saveWords(); if (!$('#wordPop').classList.contains('show')) nextPop(); renderTop(); renderDrawer(); }
+function nextPop() { const id = popQueue.shift(); if (!id) { $('#wordPop').classList.remove('show'); return; } const c = CODEX[id]; $('#wordPop').innerHTML = `<b>${c.pic} New word: ${esc(c.term)}</b><div class="mute">${esc(c.def)}</div>`; $('#wordPop').classList.add('show'); clearTimeout(popTimer); popTimer = setTimeout(nextPop, 5000); }
+function toast(text, cls) { const t = $('#toast'); t.textContent = text; t.className = 'show ' + (cls || ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 4200); }
+function say(text, ms) { adaOverride = text ? { text, until:performance.now() + (ms || 8000) } : null; renderBubble(); }
+
+function act(a) {
+  if (phase !== 'play') return;
+  if (a.type === 'inspect' || a.type === 'hypothesize') adaOverride = null;
+  const prev = G; G = Engine.reduce(G, a); version++; const l = G.last;
+  if (l.rejected) { logEv('rejected', { a:a.type }); toast(l.text, 'rej'); say(l.text, 6000); }
+  else {
+    if (a.type === 'inspect') { logEv('tool', { tool:a.tool, at:a.target }); unlock(SC.codexOn[a.target + ':' + a.tool]); }
+    if (a.type === 'mitigate') { const m = SC.mitigations.find(x => x.id === a.id); logEv('mitigate', { id:a.id }); unlock(['mitigation']); world.L = 0; flashes.push({ x:4.9, y:4.9, t:0, ok:true, at:'app', txt:'↻ restart' }); say(m.note, 9000); }
+    if (a.type === 'hypothesize') { logEv('hypothesis', { at:a.target }); unlock(['hypothesis']); }
+    if (a.type === 'fix') {
+      const f = SC.fixes.find(x => x.id === a.id); logEv('fix', { id:a.id, kind:f.kind }); say(f.outcome, 12000);
+      if (G.status === 'won') { if (f.kind === 'root') unlock(['rollback']); world = { ...healthyWorld(), ...(f.kind === 'root' ? {} : f.world) }; }
+      else { toast(`That didn't work. Try again.`, 'bad'); acc = { stage:1 }; }
+    }
+  }
+  renderAll();
+  if (prev.status === 'active' && G.status === 'won') { acc = null; renderAll(); saveSession(); endTimer = setTimeout(startReplay, 2200); }
+  if (prev.status === 'active' && G.status === 'lost') { acc = null; saveSession(); endTimer = setTimeout(showLost, 1500); }
+}
+function spendHint() {
+  if (mode !== 'solo' || phase !== 'play' || G.status !== 'active') return;
+  const idx = SC.mission.findIndex(m => !m.done(mctx()));
+  logEv('hint', { m:idx }); G = { ...G, impact:G.impact + 4, last:{ text:'Hint', dImpact:4 } }; version++; say('Hint (patience −4): ' + (SC.hints[idx] || ''), 9000); renderAll();
+  if (G.impact >= 100) { G = { ...G, status:'lost', outcome:{ kind:'lost', why:'impact' } }; saveSession(); endTimer = setTimeout(showLost, 1500); }
+}
+const mctx = () => ({ G, near:nearId, insp:k => !!G.inspected[k] });
+
+// ---- replay → teach-back → end ----
+function startReplay() {
+  phase = 'replay'; logEv('phase', { to:'replay' }); endWorld = { ...world }; savedCust = cust.map(c => c.state); cust.forEach((c, i) => { c.state = 'wait'; c.x = c.home; c.y = QY(i); });
+  world = healthyWorld(); resetSim(6); replay = { i:0, auto:0 }; applyReplay(); path = []; nearId = null;
+}
+function applyReplay() { const st = SC.replay[replay.i]; world = { ...healthyWorld(), ...(st.world || {}) }; replay.auto = 0; ring = { focus:st.focus };
+  if (st.leave) cust.forEach((c, k) => setTimeout(() => { if (phase === 'replay') c.state = 'leaving'; }, k * 350));
+  if (st.ff) ff(st.ff); if (replay.i === 0) flashes.push({ x:4.9, y:4.9, t:-.2, ok:false, at:'app' }); renderAll(); }
+function nextReplay() { logEv('replay_next', { i:replay.i }); if (replay.i < SC.replay.length - 1) { replay.i++; applyReplay(); return; } phase = 'teach'; replay = null; ring = null; restoreAfterReplay(); renderAll(); }
+function restoreAfterReplay() { world = { ...endWorld }; resetSim(6); cust.forEach((c, i) => { c.x = c.home; c.y = QY(i); c.state = savedCust[i] === 'wait' ? 'happy' : 'gone'; if (c.state === 'gone') c.x = -3; }); }
+const teacherBlock = () => `<div class="row" style="margin-top:10px"><button id="copyLog">📋 Copy session log (for the teacher)</button></div><div id="copyHost"></div>`;
+function showLost() {
+  const o = $('#overlay'), d = Engine.debrief(G);
+  o.innerHTML = `<div class="modal" style="border-color:var(--bad)"><h2>Everyone gave up 😬</h2><p class="mute" style="margin-top:0">${esc(d.blurb)}</p>
+    <p>${mode === 'guided' ? 'Ada: "Don\'t worry, this happens to everyone the first time. Let\'s try again."' : 'Losing teaches you where your instincts need work.'}</p>
+    <div class="row"><button class="primary" data-start="${SC.id}|${mode}">Try again</button><button data-menu="1">Menu</button></div>${teacherBlock()}</div>`; o.classList.add('show');
+}
+function showEnd() {
+  phase = 'end'; logEv('end', {}); const d = Engine.debrief(G), saved = cust.filter(c => c.state === 'happy').length, o = $('#overlay'), idx = LESSON_ORDER.indexOf(SC.id), nxt = LESSON_ORDER[idx + 1];
+  o.innerHTML = `<div class="modal"><h2>${esc(d.grade)} 🎉</h2>
+    <p class="mute" style="margin-top:0">You kept <b>${saved} of ${cust.length}</b> customers happy.</p>
+    ${G.outcome.kind === 'partial' ? '<p style="color:var(--warn)"><b>Careful:</b> that eased the problem, but the real cause is still there. Problems like this come back.</p>' : ''}
+    <b>Remember:</b><ul>${SC.lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    <b>Words you know:</b><div class="row" style="margin:6px 0 14px">${[...known].map(k => `<span class="tag">${CODEX[k].pic} ${esc(CODEX[k].term)}</span>`).join('')}</div>
+    <div class="row">${nxt ? `<button class="primary" data-start="${nxt}|${nxt === 'ticket_rush' ? 'solo' : 'guided'}">Next: ${esc(SCENARIOS[nxt].title.split(' · ')[1])}</button>` : ''}
+    <button data-start="${SC.id}|${mode === 'guided' ? 'solo' : mode}">${mode === 'guided' ? 'Replay without Ada' : 'Play again'}</button><button data-menu="1">Menu</button><button id="lookBtn">Look around</button></div>${teacherBlock()}</div>`; o.classList.add('show');
+}
+function showTeacher() {
+  const o = $('#overlay'), all = store.get('nexzonia_sessions', []);
+  const rows = all.slice().reverse().map(s => `<tr><td>${esc(s.when.slice(5, 16).replace('T', ' '))}</td><td>${esc(s.lesson)}/${esc(s.mode)}</td><td>${esc(String(s.outcome))}</td><td>${s.durationSec}s</td><td>${s.timeToFirstToolSec ?? '–'}s</td><td>${s.idleGaps} (${s.idleTotalSec}s)</td><td>${s.stuckestStep ?? '–'}</td><td>${s.wrongFixes}</td><td>${s.hints}</td><td>${s.teachWrong}</td><td>${s.device.w}×${s.device.h}${s.device.touch ? ' 👆' : ''}</td></tr>`).join('');
+  o.innerHTML = `<div class="modal"><h2>🧑‍🏫 Teacher view</h2><p class="mute" style="margin-top:0">Sessions played on this device. "Idle" = pauses over 8 seconds. "Stuck step" = the guide step where they paused longest (0 = first step).</p>
+    ${all.length ? `<div style="overflow:auto"><table><tr><th>When</th><th>Lesson</th><th>Result</th><th>Time</th><th>1st tool</th><th>Idle</th><th>Stuck step</th><th>Wrong fixes</th><th>Hints</th><th>Quiz misses</th><th>Screen</th></tr>${rows}</table></div>` : '<p>No sessions yet. Play one first.</p>'}
+    <div class="row" style="margin-top:12px"><button id="copyAll">📋 Copy all (JSON)</button><button id="clearAll">Clear</button><button data-menu="1">Back</button></div><div id="copyHost"></div></div>`; o.classList.add('show');
+}
+function showMenu() {
+  const o = $('#overlay'); phase = 'menu';
+  o.innerHTML = `<div class="modal"><h1>Nexzonia <span class="tag">LESSONS · PROTOTYPE</span></h1>
+    <p class="mute" style="margin-top:0">Something is broken in the city. You're the engineer who has to find out why. No coding needed.</p>
+    ${LESSON_ORDER.map(id => { const s = SCENARIOS[id]; return `<div class="lesson"><div><b>${progress[id] ? '✅ ' : ''}${esc(s.title)}</b><div class="mute small">${esc(s.symptom)}</div></div><div class="row"><button class="primary" data-start="${id}|guided">With Ada</button><button data-start="${id}|solo">Solo</button></div></div>`; }).join('')}
+    ${/^https?:/.test(location.protocol) && !(matchMedia('(display-mode: standalone)').matches) ? '<p class="small mute" style="margin:10px 0 0">📲 Tip: open your browser menu and choose <b>Add to Home screen</b> to play offline.</p>' : ''}
+    <div class="row" style="margin-top:10px"><button id="teacherBtn" class="small">🧑‍🏫 Teacher view</button></div></div>`; o.classList.add('show');
+}
+$('#overlay').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.start) { const [id, m] = b.dataset.start.split('|'); newGame(id, m); }
+  else if (b.dataset.menu) showMenu(); else if (b.id === 'lookBtn') $('#overlay').classList.remove('show');
+  else if (b.id === 'teacherBtn') showTeacher();
+  else if (b.id === 'copyLog') copyText(JSON.stringify(summary(), null, 1), $('#copyHost'));
+  else if (b.id === 'copyAll') copyText(JSON.stringify(store.get('nexzonia_sessions', [])), $('#copyHost'));
+  else if (b.id === 'clearAll') { try { localStorage.removeItem('nexzonia_sessions'); } catch (er) { /* none */ } showTeacher(); }
+});
+
+// =============== HUD ===============
+const adaStep = () => mode === 'guided' && phase === 'play' && !acc ? steps.find(s => !s.done(mctx())) : null;
+const mood = c => c.state === 'happy' ? '😄' : (c.state === 'gone' || c.state === 'leaving') ? '👋' : G.impact >= c.thr - 8 ? '😠' : G.impact >= c.thr - 22 ? '😐' : '🙂';
+function visualHTML(v) {
+  if (!v) return '';
+  if (v.type === 'bars') return `<div class="vis">${v.rows.map(r => `<div class="vb"><span class="vl">${esc(r.label)}</span><span class="vt"><i class="${r.c}" style="width:${Math.max(2, r.v / v.max * 100)}%"></i></span><b>${esc(r.text)}</b></div>`).join('')}</div>`;
+  if (v.type === 'tags') return `<div class="vis"><div class="vtags"><div><div class="vh">${esc(v.askTitle)}</div>${v.ask.map(a => `<span class="tg bad">${esc(a)} ✗</span>`).join('')}</div><div><div class="vh">${esc(v.haveTitle)}</div>${v.have.map(a => `<span class="tg good">${esc(a)}</span>`).join('')}</div></div><div class="vn">${esc(v.note)}</div></div>`;
+  if (v.type === 'lines') return `<div class="vis vlines">${v.lines.map(l => `<div>${esc(l)}</div>`).join('')}</div>`;
+  if (v.type === 'graph') {
+    const W = 260, H = 72, n = v.series.length, X = i => (i / (n - 1) * (W - 10) + 5).toFixed(1), pts = v.series.map((y, i) => `${X(i)},${(H - 8 - (y / 100) * (H - 16)).toFixed(1)}`).join(' ');
+    const marks = (v.marks || []).map(m => `<line x1="${X(m.i)}" y1="4" x2="${X(m.i)}" y2="${H - 8}" stroke="#ffb86b" stroke-dasharray="3 3"/><text x="${+X(m.i) + 3}" y="12" fill="#ffb86b" font-size="9">${esc(m.label)}</text>`).join('');
+    return `<div class="vis"><svg viewBox="0 0 ${W} ${H + 14}" class="vg"><polyline fill="none" stroke="#8b9bff" stroke-width="2" points="${pts}"/>${marks}<text x="5" y="${H + 10}" fill="#9aa3c7" font-size="9">${esc(v.x0)}</text><text x="${W - 5}" y="${H + 10}" fill="#9aa3c7" font-size="9" text-anchor="end">${esc(v.x1)}</text><text x="${W - 5}" y="12" fill="#9aa3c7" font-size="9" text-anchor="end">${esc(v.y)}</text></svg><div class="vn">${esc(v.note)}</div></div>`;
+  }
+  return '';
+}
+function renderAll() { renderTop(); renderBubble(); renderDrawer(); renderPrompt(true); renderCard(); renderFabs(); }
+function renderTop() {
+  const play = phase === 'play', cur = SC.mission.findIndex(m => !m.done(mctx())), pat = Math.max(0, 100 - G.impact), cls = pat <= 25 ? 'crit' : pat <= 50 ? 'hot' : '';
+  $('#topbar').style.display = phase === 'intro' || phase === 'menu' ? 'none' : '';
+  $('#mission').innerHTML = play ? SC.mission.map((m, i) => `<div class="m ${m.done(mctx()) ? 'ok' : i === cur ? 'now' : ''}"><span class="box">${m.done(mctx()) ? '✓' : ''}</span><span class="lbl">${esc(m.label)}</span></div>`).join('') : `<span class="mute small">${esc(SC.title)}</span>`;
+  $('#pat').innerHTML = `<span class="small mute">Patience</span><div class="bar ${cls}"><i style="width:${pat}%"></i></div><span id="faces">${cust.map(c => `<span title="${esc(c.name)}">${mood(c)}</span>`).join('')}</span>`;
+  const cb = $('#cdxBtn'); cb.style.display = G.notebook.length || known.size ? '' : 'none'; cb.textContent = compact ? '📒' : `📒 Notebook & words (${known.size})`;
+}
+function renderBubble() {
+  const el = $('#bubble'), now = performance.now(); if (adaOverride && now > adaOverride.until) adaOverride = null;
+  const st = adaStep(), last = G.notebook[G.notebook.length - 1];
+  const adaText = adaOverride ? adaOverride.text : st ? st.say : (mode === 'solo' && phase === 'play' ? 'Solo mode. Tap ❓ Hint if you get stuck (patience −4).' : '');
+  let html = '';
+  if (phase === 'play' && !acc) {
+    if (last) html += `<div class="clue"><div class="src">🔎 ${esc(SC.components[last.target].name)} · you found out:</div><b>${esc(last.text)}</b>${visualHTML(SC.visual[last.target + ':' + last.tool])}</div>`;
+    if (adaText) html += `<div class="who"><div class="av ${mode === 'solo' ? 'solo' : ''}">${mode === 'solo' ? '?' : 'A'}</div><div><b class="n">${mode === 'solo' ? 'Solo' : 'Ada'}</b><div>${esc(adaText)}</div></div></div>`;
+  } else if (phase === 'play' && acc && adaOverride) html = `<div class="who"><div class="av">A</div><div><b class="n">Ada</b><div>${esc(adaOverride.text)}</div></div></div>`;
+  el.style.display = html ? '' : 'none'; if (html !== bubbleHTML) { bubbleHTML = html; el.innerHTML = html; el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+}
+function renderDrawer() {
+  $('#drawer').innerHTML = `<div class="row" style="justify-content:space-between"><b>Notebook &amp; words</b><button id="closeDrawer">Close</button></div>
+    <h3>Notebook</h3>${G.notebook.length ? G.notebook.map(n => `<div class="e"><div class="mute small">${esc(SC.components[n.target].name)} · ${TOOLS[n.tool].icon} ${esc(TOOLS[n.tool].label)}</div>${esc(n.text)}${visualHTML(SC.visual[n.target + ':' + n.tool])}</div>`).join('') : '<div class="mute">Empty.</div>'}
+    <h3>Words · ${known.size} of ${Object.keys(CODEX).length}</h3>${Object.entries(CODEX).map(([k, c]) => known.has(k) ? `<div class="e"><b>${c.pic} ${esc(c.term)}</b><div class="mute">${esc(c.def)}</div></div>` : `<div class="e locked"><b>???</b></div>`).join('')}`;
+}
+const accuseReady = () => mode === 'solo' ? G.notebook.length >= 3 : SC.accuseNeeds.every(k => G.inspected[k]);
+function renderFabs() {
+  const play = phase === 'play' && !acc, a = $('#accuseBtn'), h = $('#hintBtn');
+  a.style.display = play && accuseReady() ? '' : 'none'; a.classList.toggle('pulse', mode === 'guided' && steps.indexOf(adaStep()) >= steps.length - 2);
+  h.style.display = play && mode === 'solo' ? '' : 'none';
+}
+const isLocked = t => mode === 'guided' && SC.lock && SC.lock[t] && !SC.lock[t].every(k => G.inspected[k]);
+let promptSig = '', curItems = [];
+function itemsFor(id) {
+  const items = SC.tools.map(t => ({ icon:TOOLS[t].icon, label:TOOLS[t].label, sub:TOOLS[t].sub, done:!!G.inspected[id + ':' + t], locked:isLocked(t), a:{ type:'inspect', tool:t, target:id } }));
+  if (id === 'app') SC.mitigations.forEach(m => items.push({ icon:'🩹', label:'Restart it', sub:'quick fix, buys time', done:G.mitigations.includes(m.id), locked:false, a:{ type:'mitigate', id:m.id } }));
+  return items;
+}
+function renderPrompt(force) {
+  const sig = nearId + '|' + version + '|' + phase + '|' + (acc ? 1 : 0) + '|' + compact; if (!force && sig === promptSig) return; promptSig = sig;
+  const el = $('#prompt'); el.style.display = phase === 'play' && !acc ? '' : 'none'; if (phase !== 'play' || acc) return;
+  if (!nearId) { curItems = []; el.innerHTML = `<span class="mute">👆 <b>Tap a building</b> to walk there.${COARSE ? '' : ' (Or use WASD / arrow keys.)'}</span>`; return; }
+  const b = bld.find(q => q.id === nearId); curItems = itemsFor(nearId);
+  el.innerHTML = `<h2>${esc(b.name)} <span class="mute small">${esc(SC.theme.blurb[nearId])}</span></h2><div class="bigrow">${curItems.map((it, i) => `<button class="big" data-i="${i}" ${it.done || it.locked ? 'disabled' : ''}><span class="ic">${it.done ? '✅' : it.icon}</span><span>${esc(it.label)}</span><span class="sub mute">${it.locked ? 'Unlocks soon' : esc(it.sub)}</span></button>`).join('')}</div>`;
+}
+// ---- the evidence board: pin each clue to the place it points at, then choose ----
+const uniqueClues = () => G.notebook.filter((n, i, a) => a.findIndex(m => m.target === n.target && m.tool === n.tool) === i);
+const pinsNeeded = () => mode === 'guided' ? Math.min(2, uniqueClues().length) : 0;
+function boardHTML() {
+  const rows = uniqueClues().map(n => { const key = n.target + ':' + n.tool; return `<div class="pin"><div class="pt">${TOOLS[n.tool].icon} <b>${esc(SC.components[n.target].name)}</b>: ${esc(SC.short[n.target][n.tool])}</div><div class="pb">${bld.map(b => `<button data-pin="${key}|${b.id}" class="${pins[key] === b.id ? 'on' : ''}">${esc(b.name)}</button>`).join('')}</div></div>`; }).join('');
+  const n = Object.keys(pins).length, need = pinsNeeded();
+  return `<span class="tag">💡 Your guess</span><div class="accgrid"><div><h2 style="margin:8px 0 2px">Pin the clues</h2><div class="small mute" style="margin-bottom:6px">For each clue, tap the place it points at.${need ? ` Pin at least ${need}.` : ''}</div><div class="board">${rows}</div></div>
+    <div><h2 style="margin:8px 0 6px;font-size:16px">Which place is the real cause?</h2>${bld.map(b => `<button class="opt" data-who="${b.id}" ${n < need ? 'disabled' : ''}><b>${esc(b.name)}</b> <span class="mute opsub">· ${esc(SC.theme.sub[b.id])}</span></button>`).join('')}<button data-cancel="1">Not yet, back to investigating</button></div></div>`;
+}
+function renderCard() {
+  const c = $('#card'), on = phase === 'intro' || phase === 'replay' || phase === 'teach' || (phase === 'play' && acc); c.style.display = on ? '' : 'none'; if (!on) return;
+  if (phase === 'intro') { const st = introStep(), last = intro.i === SC.intro.length - 1;
+    if (st.tap && !intro.arrived) c.innerHTML = `<span class="tag">👆 Try it · ${intro.i + 1} of ${SC.intro.length}</span><h2 style="margin-top:8px;font-size:18px">${esc(st.text)}</h2>`;
+    else c.innerHTML = `<span class="tag">👀 Learn · ${intro.i + 1} of ${SC.intro.length}</span><h2 style="margin-top:8px;font-size:18px">${esc(st.tap ? st.ok : st.text)}</h2><button class="primary" id="nextBtn">${last ? "Let's investigate ▸" : 'Next ▸'}</button>`; }
+  else if (phase === 'replay') { const st = SC.replay[replay.i], last = replay.i === SC.replay.length - 1;
+    c.innerHTML = `<span class="tag">⏪ Rewind: how it happened · ${replay.i + 1} of ${SC.replay.length}</span><h2 style="margin-top:8px">${esc(st.title)}</h2><p style="margin:0 0 10px;font-size:15px">${esc(st.text)}</p><button class="primary" id="nextBtn">${last ? 'Quick check ▸' : 'Next ▸'}</button>`; }
+  else if (phase === 'teach') { const q = SC.teach;
+    c.innerHTML = `<span class="tag">🧠 Quick check</span><h2 style="margin-top:8px">${esc(q.q)}</h2>${q.options.map((o, i) => `<button class="opt" data-opt="${i}">${esc(o.t)}</button>`).join('')}<div id="teachMsg" style="margin-top:6px"></div>`; }
+  else if (acc.stage === 1) c.innerHTML = boardHTML();
+  else c.innerHTML = `<span class="tag">🔧 The fix</span><h2 style="margin-top:8px">How do we fix the ${esc(SC.components[acc.who].name)}?</h2>${SC.fixes.filter(f => f.target === acc.who).map(f => `<button class="opt" data-fix="${f.id}">${esc(f.label)}</button>`).join('')}<button data-back="1">◂ Pick a different place</button>`;
+}
+$('#card').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'nextBtn') { phase === 'intro' ? nextIntro() : nextReplay(); }
+  else if (b.dataset.opt !== undefined) {
+    const o = SC.teach.options[+b.dataset.opt], m = $('#teachMsg'); logEv('teach', { ok:o.ok });
+    if (o.ok) { m.innerHTML = `<span style="color:var(--good)"><b>Yes!</b></span> ${esc(o.why)} <div style="margin-top:8px"><button class="primary" id="doneBtn">Finish ▸</button></div>`; } else m.innerHTML = `<span style="color:var(--warn)"><b>Not quite.</b></span> ${esc(o.why)}`;
+  } else if (b.id === 'doneBtn') { $('#card').style.display = 'none'; showEnd(); }
+  else if (b.dataset.pin) { const [key, who] = b.dataset.pin.split('|'); if (pins[key] === who) delete pins[key]; else pins[key] = who; logEv('pin', { key, who }); const sc = $('#card .board').scrollTop; renderCard(); $('#card .board').scrollTop = sc; }
+  else if (b.dataset.who) {
+    const w = b.dataset.who; act({ type:'hypothesize', target:w });
+    if (G.hypothesis === w) {
+      acc = { stage:2, who:w };
+      const counts = {}; Object.values(pins).forEach(p => { counts[p] = (counts[p] || 0) + 1; }); const top = Math.max(0, ...Object.values(counts));
+      if (top && (counts[w] || 0) < top) { const most = Object.keys(counts).find(k => counts[k] === top); say(`Most of your pinned clues point at the ${SC.components[most].name}. Is the ${SC.components[w].name} the cause, or just where the trouble shows up?`, 9000); }
+      else if (SC.components[w].role !== 'cause') say(`Hmm, are you sure? Check the clues again. You can still pick a different place.`, 7000);
+      renderAll();
+    }
+  }
+  else if (b.dataset.fix) act({ type:'fix', id:b.dataset.fix });
+  else if (b.dataset.back) { acc = { stage:1 }; renderAll(); }
+  else if (b.dataset.cancel) { acc = null; renderAll(); }
+});
+$('#accuseBtn').onclick = () => { if (accuseReady() && phase === 'play') { logEv('accuse_open', {}); acc = { stage:1 }; path = []; renderAll(); } };
+$('#hintBtn').onclick = spendHint;
+$('#prompt').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !b.disabled) act(curItems[+b.dataset.i].a); });
+const toggleDrawer = v => $('#drawer').classList.toggle('open', v);
+$('#cdxBtn').onclick = () => toggleDrawer(); $('#drawer').addEventListener('click', e => { if (e.target.id === 'closeDrawer') toggleDrawer(false); });
+addEventListener('keydown', e => {
+  if ($('#overlay').classList.contains('show')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'tab') { e.preventDefault(); toggleDrawer(); return; }
+  if ((phase === 'replay' || phase === 'intro') && (k === ' ' || k === 'enter')) { e.preventDefault(); if (phase === 'replay') nextReplay(); else if (!introStep().tap || intro.arrived) nextIntro(); return; }
+  if (k === 'h') { spendHint(); return; }
+  if (/^[1-9]$/.test(k) && phase === 'play' && !acc) { const it = curItems[+k - 1]; if (it && !it.done && !it.locked) act(it.a); return; }
+  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) && canMove()) { keys.add(k); path = []; e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListener('blur', () => keys.clear());
+
+// =============== update ===============
+const rectDist = (px, py, b) => Math.hypot(px - Math.max(b.x, Math.min(px, b.x + b.w)), py - Math.max(b.y, Math.min(py, b.y + b.d)));
+const blockedAt = (x, y) => { const r = .28; return x < r || y < r || x > MAP_W - r || y > MAP_H - r || bld.some(b => x > b.x - r && x < b.x + b.w + r && y > b.y - r && y < b.y + b.d + r); };
+function update(dt) {
+  T += dt;
+  if (canMove()) {
+    const sx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), sy = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
+    if (sx || sy) { let gx = sx + sy, gy = sy - sx; const n = Math.hypot(gx, gy); gx /= n; gy /= n; const v = 3.6 * dt; if (!blockedAt(player.x + gx * v, player.y)) player.x += gx * v; if (!blockedAt(player.x, player.y + gy * v)) player.y += gy * v; player.walk += dt; if (sx) player.face = sx; }
+    else if (path.length) { const tg = path[0], dx = tg[0] - player.x, dy = tg[1] - player.y, d = Math.hypot(dx, dy), v = 4 * dt; if (d <= v) { player.x = tg[0]; player.y = tg[1]; path.shift(); } else { player.x += dx / d * v; player.y += dy / d * v; } player.walk += dt; if (dx - dy) player.face = Math.sign(dx - dy) || 1; }
+    let best = null, bd = 1.05; if (!path.length) bld.forEach(b => { const d = rectDist(player.x, player.y, b); if (d < bd) { bd = d; best = b.id; } });
+    if (best !== nearId) { nearId = best; if (best) logEv('arrive', { at:best }); renderPrompt(true); if (phase === 'intro' && best && best === introStep().tap) { intro.arrived = true; renderCard(); } }
+    const dx = player.x - ada.x, dy = player.y - ada.y, d = Math.hypot(dx, dy); if (d > 1.6) { const v = Math.min(d - 1.4, 3.2 * dt); ada.x += dx / d * v; ada.y += dy / d * v; ada.walk += dt; }
+    const idleMs = performance.now() - lastInput;
+    if (phase === 'play' && !nudged && !acc && idleMs > 9000) { nudged = true; logEv('nudge', {}); if (mode === 'guided') $('#bubble').classList.add('shake'); else toast('Stuck? Tap ❓ Hint.'); }
+  }
+  simStep(dt);
+  cust.forEach(c => {
+    if (phase === 'play' && c.state === 'wait' && G.impact >= c.thr) { c.state = 'leaving'; logEv('customer_left', { n:c.name }); toast(`${c.name} gave up and left. ${c.story}`, 'bad'); renderTop(); }
+    if (c.state === 'leaving') { c.x -= 1.5 * dt; if (c.x < -3) { c.state = 'gone'; renderTop(); } }
+  });
+  if (phase === 'teach' || phase === 'end') cust.forEach(c => { if (c.state === 'happy' && Math.random() < 2 * dt) parts.push({ x:c.x, y:c.y, z:30, vz:30, life:0, ttl:1.2 }); });
+  parts.forEach(p => { p.life += dt; p.z += p.vz * dt; }); parts = parts.filter(p => p.life < p.ttl);
+  if (replay) { replay.auto += dt; if (replay.auto > 12) nextReplay(); }
+  if (adaOverride && performance.now() > adaOverride.until) { adaOverride = null; renderBubble(); }
+  const idx = phase === 'play' ? curStepIdx() : -2, k = idx + '|' + (acc ? 1 : 0);
+  if (k !== update.k) { if (phase === 'play' && update.k !== undefined && idx !== -2) { stepTimes.push(nowMs()); logEv('step', { to:idx }); } update.k = k; renderBubble(); renderTop(); renderFabs(); renderPrompt(true); }
+  renderPrompt(false);
+}
+
+// =============== draw ===============
+function person(x, y, color, label, face, walk, extra) {
+  const p = proj(x, y), bob = Math.abs(Math.sin(walk * 10)) * 2, f = UI();
+  ctx.save(); ctx.translate(p.x, p.y); ctx.scale(f, f);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, 0, 8, 4, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(-6, -21 - bob, 12, 19, 5); ctx.fill();
+  ctx.fillStyle = '#f2d3b3'; ctx.beginPath(); ctx.arc(0, -26 - bob, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b2147'; ctx.beginPath(); ctx.arc(2 * face, -27 - bob, 1.3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e8eaf6'; ctx.font = '600 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(label, 0, -36 - bob);
+  if (extra) { ctx.font = '15px system-ui'; ctx.fillText(extra, 0, -47 - bob); }
+  ctx.restore();
+}
+const revealCache = () => phase === 'replay' || phase === 'intro' || !!G.inspected['cache:metrics'] || !!G.inspected['cache:logs'];
+const revealDb = () => phase === 'replay' || phase === 'intro' || !!G.inspected['db:metrics'];
+const revealClutter = () => phase === 'replay' || phase === 'intro' || !!G.inspected['app:metrics'] || !!G.inspected['app:trend'];
+function draw() {
+  const g = ctx.createLinearGradient(0, 0, 0, ch); g.addColorStop(0, '#0b0f24'); g.addColorStop(1, '#17204a');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+  const road = new Set(); const addRoad = p => { for (let i = 1; i < p.length; i++) { const a = p[i - 1], b = p[i], n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))); for (let k = 0; k <= n; k++) road.add(Math.floor(a[0] + (b[0] - a[0]) * k / (n || 1)) + ',' + Math.floor(a[1] + (b[1] - a[1]) * k / (n || 1))); } };
+  [R.gate, R.toCache, R.toDb].forEach(addRoad);
+  const st = adaStep(), introTap = phase === 'intro' && introStep().tap && !intro.arrived ? bld.find(b => b.id === introStep().tap) : null;
+  const near = nearId ? bld.find(b => b.id === nearId) : null, hov = hoverId ? bld.find(b => b.id === hoverId) : null, tgt = introTap || (st && st.target ? bld.find(b => b.id === st.target) : null);
+  const inRing = (b, x, y, m = 1) => b && x >= b.x - m && x <= b.x + b.w + m - 1 && y >= b.y - m && y <= b.y + b.d + m - 1;
+  const idle = phase === 'play' && !nearId && !path.length && !acc;
+  for (let s = 0; s < MAP_W + MAP_H - 1; s++) for (let x = 0; x < MAP_W; x++) {
+    const y = s - x; if (y < 0 || y >= MAP_H) continue;
+    const isRoad = road.has(x + ',' + y), glow = inRing(near, x, y) || inRing(hov, x, y), pulse = inRing(tgt, x, y), hot = idle && !pulse && bld.some(b => inRing(b, x, y, 1));
+    poly([proj(x, y), proj(x + 1, y), proj(x + 1, y + 1), proj(x, y + 1)], isRoad ? '#566191' : pulse ? `rgba(255,184,107,${.18 + .12 * Math.sin(T * 4)})` : glow ? '#33407a' : hot ? `rgba(139,155,255,${.1 + .07 * Math.sin(T * 3)})` : ((x + y) % 2 ? '#1c2748' : '#1f2b50'), isRoad ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.03)');
+  }
+  const D = [], f = UI();
+  bld.forEach(b => D.push({ k:b.x + 1 + b.y + 1, f:() => drawBuilding(b) }));
+  D.push({ k:-.7, f:drawGate });
+  orders.forEach(o => { if (bld.some(b => o.x > b.x && o.x < b.x + b.w && o.y > b.y && o.y < b.y + b.d)) return; const s = .13 * f; D.push({ k:o.x + o.y, f:() => box(o.x - s, o.y - s, s * 2, s * 2, 7 * f, o.color, false, o.z || 0) }); });
+  cust.forEach(c => { if (c.state === 'gone') return; D.push({ k:c.x + c.y, f:() => person(c.x, c.y, '#c084fc', '', 1, c.state === 'leaving' ? T * .4 : 0, mood(c)) }); });
+  if (mode === 'guided') D.push({ k:ada.x + ada.y, f:() => person(ada.x, ada.y, '#ffb86b', 'Ada', 1, ada.walk) });
+  D.push({ k:player.x + player.y, f:() => person(player.x, player.y, '#8b9bff', 'you', player.face, player.walk) });
+  D.sort((a, b) => a.k - b.k).forEach(d => d.f());
+  flashes.forEach(fl => {
+    if (fl.t < 0) return; if (fl.at === 'cache' && !revealCache()) return; if (fl.at === 'gate' && fl.t > .6) return;
+    const q = proj(fl.x, fl.y, 40 + fl.t * 26); ctx.globalAlpha = Math.max(0, 1 - fl.t / 1.1); ctx.font = `700 ${15 * f}px system-ui`; ctx.textAlign = 'center';
+    ctx.fillStyle = fl.at === 'app' ? (fl.txt ? '#5fd38d' : '#8b9bff') : fl.ok ? '#5fd38d' : '#ff6b6b'; ctx.fillText(fl.at === 'app' ? (fl.txt || '★ update!') : fl.at === 'gate' ? (fl.ok ? '✓' : '✗') : fl.ok ? '✓' : '?', q.x, q.y); ctx.globalAlpha = 1;
+  });
+  parts.forEach(p => { const q = proj(p.x, p.y, p.z); ctx.globalAlpha = 1 - p.life / p.ttl; ctx.font = `${13 * f}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#ff8fa3'; ctx.fillText('♥', q.x, q.y); ctx.globalAlpha = 1; });
+  bld.forEach(b => { drawLabel(b); if (phase === 'play' && !compact) drawChips(b); });
+  drawBeacon(tgt); if (ring) drawRing(ring.focus);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const a = phase === 'play' ? Math.max(0, (G.impact - 40) / 60) * .4 : 0;
+  if (a > 0) { const v = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * .35, cw / 2, ch / 2, Math.max(cw, ch) * .75); v.addColorStop(0, 'rgba(255,40,40,0)'); v.addColorStop(1, `rgba(255,40,40,${a})`); ctx.fillStyle = v; ctx.fillRect(0, 0, cw, ch); }
+}
+function drawGate() { box(.1, 3.7, .35, .35, 38, '#64748b', false); box(.1, 5.0, .35, .35, 38, '#64748b', false); box(.1, 3.7, .35, 1.65, 8, '#94a3b8', false, 38); }
+function drawBuilding(b) {
+  box(b.x, b.y, b.w, b.d, b.h, b.color);
+  poly([proj(b.x + .3, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + .3, b.h + 4), proj(b.x + 1.7, b.y + 1.7, b.h + 4), proj(b.x + .3, b.y + 1.7, b.h + 4)], shade(b.color, 1.25));
+  if (b.id === 'cache') { const s = proj(b.x + 1, b.y + 1, b.h + 6); for (let i = 0; i < 4; i++) { ctx.fillStyle = world.broken ? 'rgba(0,0,0,.25)' : '#fde68a'; ctx.fillRect(s.x - 18 + i * 10, s.y - 3, 7, 5); } }
+  if (b.id === 'app' && world.counterSvc) { const n = Math.round(world.L * 30); for (let i = 0; i < n; i++) { const col = i % 5, row = Math.floor(i / 5) % 4, layer = Math.floor(i / 20); box(b.x + .35 + col * .28 + (row % 2) * .05, b.y + .35 + row * .3, .24, .2, 2.4, '#f1ede0', false, b.h + 4 + layer * 2.6); } }
+}
+function drawLabel(b) {                                  // drawn at constant screen size so it stays readable on small screens
+  const c = proj(b.x + 1, b.y + 1, b.h + 24), isNear = b.id === nearId || b.id === hoverId;
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1 / S, 1 / S); ctx.textAlign = 'center';
+  const fs = compact ? 12 : 14; ctx.font = `${isNear ? 700 : 600} ${fs}px system-ui,sans-serif`; const w = ctx.measureText(b.name).width + 16;
+  ctx.fillStyle = isNear ? 'rgba(139,155,255,.95)' : 'rgba(10,13,30,.88)'; ctx.beginPath(); ctx.roundRect(-w / 2, -(fs + 3), w, fs + 9, 7); ctx.fill();
+  ctx.fillStyle = isNear ? '#0b0f24' : '#e8eaf6'; ctx.fillText(b.name, 0, 1);
+  if (!compact || b.id === nearId) { ctx.font = '600 10px system-ui'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,13,30,.9)'; ctx.strokeText(SC.theme.sub[b.id], 0, -19); ctx.fillStyle = '#c9d0f5'; ctx.fillText(SC.theme.sub[b.id], 0, -19); }
+  if (G.hypothesis === b.id && phase === 'play') { ctx.fillStyle = '#f5b84b'; ctx.font = '700 20px system-ui'; ctx.fillText('★', 0, -34 + Math.sin(T * 4) * 3); }
+  const gauge = (fr, txt) => { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(-30, -52, 60, 7); ctx.fillStyle = fr > .7 ? '#ff6b6b' : fr > .35 ? '#f5b84b' : '#5fd38d'; ctx.fillRect(-30, -52, 60 * fr, 7); if (!compact) { ctx.fillStyle = '#e8eaf6'; ctx.font = '600 10px system-ui'; ctx.fillText(txt, 0, -56); } };
+  if (SC.sim === 'cache' && b.id === 'db' && revealDb()) gauge(Math.min(1, whQ.length / 14), `line: ${whQ.length} waiting`);
+  if (SC.sim === 'leak' && b.id === 'app' && revealClutter()) gauge(world.L, `clutter · line: ${counterQ.length}`);
+  ctx.restore();
+}
+function drawChips(b) {                                  // the clues you found, pinned to the building they came from
+  const ents = Object.keys(TOOLS).filter(t => G.inspected[b.id + ':' + t]); if (!ents.length) return;
+  const a = proj(b.x + 1, b.y + 2.4, 0); ctx.save(); ctx.translate(a.x, a.y); ctx.scale(1 / S, 1 / S); ctx.font = '600 11px system-ui'; ctx.textAlign = 'left';
+  let y = 0; ents.forEach(t => { const txt = TOOLS[t].icon + ' ' + SC.short[b.id][t], w = ctx.measureText(txt).width + 14; ctx.fillStyle = 'rgba(10,13,30,.93)'; ctx.strokeStyle = 'rgba(139,155,255,.55)'; ctx.beginPath(); ctx.roundRect(-w / 2, y, w, 20, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8eaf6'; ctx.fillText(txt, -w / 2 + 7, y + 14); y += 22; });
+  ctx.restore();
+}
+function drawBeacon(tgt) { if ((phase !== 'play' && phase !== 'intro') || !tgt) return; const big = nudged ? 1.6 : 1, c = proj(tgt.x + 1, tgt.y + 1, tgt.h + 70 + Math.abs(Math.sin(T * (nudged ? 6 : 3))) * (nudged ? 14 : 8)); ctx.save(); ctx.translate(c.x, c.y); ctx.scale(big * UI(), big * UI()); ctx.fillStyle = '#ffb86b'; ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(-8, 0); ctx.lineTo(8, 0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function drawRing(focus) {
+  const b = focus === 'gate' ? { x:.2, y:3.5, w:1.5, d:2.2 } : bld.find(q => q.id === focus); if (!b) return;
+  const p = [proj(b.x - .4, b.y - .4), proj(b.x + b.w + .4, b.y - .4), proj(b.x + b.w + .4, b.y + b.d + .4), proj(b.x - .4, b.y + b.d + .4)];
+  ctx.lineWidth = 3; poly(p, `rgba(255,184,107,${.12 + .1 * Math.sin(T * 5)})`, `rgba(255,184,107,${.7 + .3 * Math.sin(T * 5)})`);
+}
+let last = performance.now();
+function frame(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+resize(); newGame('canteen', 'solo'); showMenu(); requestAnimationFrame(frame);
+
+</script>
+
+</body>
+</html>
